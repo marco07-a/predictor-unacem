@@ -246,7 +246,7 @@ if st.button("Calcular Predicción", use_container_width=True):
 # Pie de página institucional
 st.markdown("""
 <div class="footer-disclaimer">
-    <b>QuAI presenta M.A.R.C.O. v1.0</b> — Machine learning Algorithm for Resistance and Cement Optimization by Marco Martínez.<br>
-    Las estimaciones generadas se basan en modelamiento fisicoquímico y estadístico de planta; no sustituyen los ensayos físicos destructivos oficiales bajo norma ASTM C109.
+    <b>QuAI presenta M.A.R.C.O. v1.0</b> (<i>Machine learning Algorithm for Resistance and Cement Optimization</i>) &nbsp;|&nbsp; by Marco Martínez<br>
+    QuAI es una IA y puede cometer errores. Las estimaciones son herramientas de soporte operativo y no sustituyen los ensayos físicos oficiales bajo norma ASTM C109.
 </div>
 """, unsafe_allow_html=True)
