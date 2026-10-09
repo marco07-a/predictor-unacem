@@ -4,12 +4,12 @@ import joblib
 import os
 
 st.set_page_config(
-    page_title="UNACEM - Predictor GU",
-    page_icon="⚡",
+    page_title="UNACEM - Predictor de Calidad",
+    page_icon="🏭",
     layout="wide"
 )
 
-# Estilos de tarjeta y botones
+# Estilos CSS
 st.markdown("""
 <style>
     .metric-card {
@@ -48,7 +48,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Cargar modelos
+# Cargar modelos en caché
 @st.cache_resource
 def cargar_modelos():
     m1 = None
@@ -63,33 +63,39 @@ def cargar_modelos():
 
 mod_1d, mod_28d = cargar_modelos()
 
-# Encabezado
-header_col1, header_col2 = st.columns([1, 6])
-with header_col1:
+# Encabezado institucional y autoría
+col_logo, col_titulo = st.columns([1, 6])
+with col_logo:
     if os.path.exists("unacem_logo.png"):
         st.image("unacem_logo.png", width=120)
-with header_col2:
-    st.title("Sistema Predictivo de Resistencia")
-    st.caption("Cemento Tipo GU | Control Fisicoquímico de Producción")
-
-st.write("")
-
-# Selector de horizonte
-sel_col1, sel_col2 = st.columns([2, 4])
-with sel_col1:
-    horizonte = st.selectbox(
-        "Horizonte de Predicción",
-        ["28 Días (Resistencia Terminal)", "1 Día (Resistencia Temprana)"]
-    )
-with sel_col2:
-    if "28 Días" in horizonte:
-        st.caption("Modelo activo: **LightGBM M34** | Error medio: **±9.27 kg/cm²** (MAPE: 2.58%)")
-    else:
-        st.caption("Modelo activo: **XGBoost** | Error medio: **±5.67 kg/cm²**")
+with col_titulo:
+    st.title("Sistema Predictivo de Resistencia a la Compresión")
+    st.caption("División de Control de Calidad Atocongo | Elaborado por: Martínez Sánchez, Marco Antonio Uriel")
 
 st.markdown("---")
 
-# Entradas (4 columnas limpias)
+# Selectores de configuración
+c_tipo, c_horiz, c_mod = st.columns([2, 2, 2])
+
+with c_tipo:
+    tipo_cemento = st.selectbox(
+        "Tipo de Cemento",
+        ["Cemento Tipo GU"]
+    )
+
+with c_horiz:
+    horizonte = st.selectbox(
+        "Horizonte de Producción",
+        ["28 Días", "1 Día"]
+    )
+
+with c_mod:
+    modelo_nombre = "LightGBM" if "28 Días" in horizonte else "XGBoost"
+    st.text_input("Modelo Activo", value=modelo_nombre, disabled=True)
+
+st.markdown("---")
+
+# Matriz de variables de entrada (4 columnas)
 c1, c2, c3, c4 = st.columns(4)
 
 with c1:
@@ -118,7 +124,7 @@ with c4:
 
 st.write("")
 
-# Inferencia
+# Cálculo de predicción
 if st.button("Calcular Predicción", use_container_width=True):
     input_data = pd.DataFrame([{
         '%Caliza': caliza,
