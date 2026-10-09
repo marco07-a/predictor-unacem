@@ -1,17 +1,20 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import joblib
 import os
+import re
+import unicodedata
 
 # Configuración de página
 st.set_page_config(
-    page_title="QuAI | UNACEM Atocongo",
+    page_title="QuAI | M.A.R.C.O. - UNACEM",
     page_icon="🏭",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# Estilos CSS
+# Estilos CSS avanzados (Compacto y Sofisticado)
 st.markdown("""
 <style>
     .block-container {
@@ -19,10 +22,19 @@ st.markdown("""
         padding-bottom: 1.5rem !important;
         max-width: 95% !important;
     }
+    .brand-tag {
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: #E30613;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        margin-bottom: 2px;
+    }
     h1 {
         font-size: 1.85rem !important;
         font-weight: 700 !important;
         letter-spacing: -0.5px;
+        margin-top: 0 !important;
         margin-bottom: 0.2rem !important;
     }
     .sub-meta {
@@ -91,33 +103,64 @@ st.markdown("""
 def cargar_modelos():
     m1 = None
     m28 = None
-    
-    # Modelo 1 Día (M35)
-    for ruta in ["modelo_M35_1dia_produccion.pkl", "modelo_GU_1dia.pkl", "modelo_xgboost_gu.pkl"]:
-        if os.path.exists(ruta):
-            m1 = joblib.load(ruta)
-            break
-            
-    # Modelo 28 Días (M34)
-    for ruta in ["modelo_M34_28d_produccion.pkl", "modelo_GU_28d_produccion.pkl"]:
-        if os.path.exists(ruta):
-            m28 = joblib.load(ruta)
-            break
-
+    if os.path.exists("modelo_M35_1dia_produccion.pkl"):
+        m1 = joblib.load("modelo_M35_1dia_produccion.pkl")
+    if os.path.exists("modelo_M34_28d_produccion.pkl"):
+        m28 = joblib.load("modelo_M34_28d_produccion.pkl")
     return m1, m28
 
 mod_1d, mod_28d = cargar_modelos()
 
-# Encabezado
+# Función adaptadora para compatibilidad de variables en XGBoost y LightGBM
+def predecir_con_modelo(modelo, df_input):
+    expected_cols = None
+    
+    # Extraer nombres exactos de entrenamiento
+    if hasattr(modelo, "feature_names_in_"):
+        expected_cols = list(modelo.feature_names_in_)
+    elif hasattr(modelo, "get_booster"):
+        try:
+            expected_cols = modelo.get_booster().feature_names
+        except Exception:
+            pass
+    elif hasattr(modelo, "booster_"):
+        try:
+            expected_cols = modelo.booster_.feature_name()
+        except Exception:
+            pass
+
+    if expected_cols:
+        def norm(t):
+            return re.sub(r'[^a-z0-9]', '', unicodedata.normalize('NFKD', str(t)).encode('ASCII', 'ignore').decode('utf-8').lower())
+
+        input_clean = {norm(c): c for c in df_input.columns}
+        df_alineado = pd.DataFrame()
+
+        for col in expected_cols:
+            col_c = norm(col)
+            if col in df_input.columns:
+                df_alineado[col] = df_input[col]
+            elif col_c in input_clean:
+                df_alineado[col] = df_input[input_clean[col_c]]
+            else:
+                df_alineado[col] = 0.0
+
+        return float(modelo.predict(df_alineado)[0])
+    else:
+        return float(modelo.predict(df_input)[0])
+
+# Encabezado institucional y marca QuAI
 col_logo, col_tit = st.columns([1.8, 5.2])
 with col_logo:
     if os.path.exists("unacem_logo.png"):
         st.image("unacem_logo.png", width=220)
-with col_tit:
-    st.markdown("<h1>Sistema Predictivo de Resistencia a la Compresión</h1>", unsafe_allow_html=True)
-    st.markdown("<div class='sub-meta'>División de Control de Calidad Atocongo &nbsp;|&nbsp; Elaborado por: <b>Martínez Sánchez, Marco Antonio Uriel</b></div>", unsafe_allow_html=True)
 
-# Controles de configuración
+with col_tit:
+    st.markdown("<div class='brand-tag'>QuAI PRESENTA: M.A.R.C.O.</div>", unsafe_allow_html=True)
+    st.markdown("<h1>Sistema Predictivo de Resistencia a la Compresión</h1>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-meta'>División de Control de Calidad Atocongo &nbsp;|&nbsp; <b>by Marco Martínez</b></div>", unsafe_allow_html=True)
+
+# Selectores de configuración
 c_tipo, c_horiz, c_mod = st.columns([2.5, 2.5, 2])
 with c_tipo:
     tipo_cemento = st.selectbox("Tipo de Cemento", ["Cemento Tipo GU"])
@@ -158,7 +201,7 @@ with c4:
 
 st.write("")
 
-# Cálculo e Inferencia
+# Inferencia
 if st.button("Calcular Predicción", use_container_width=True):
     input_data = pd.DataFrame([{
         '%Caliza': caliza,
@@ -181,7 +224,7 @@ if st.button("Calcular Predicción", use_container_width=True):
 
     if "28 Días" in horizonte:
         if mod_28d is not None:
-            pred = float(mod_28d.predict(input_data)[0])
+            pred = predecir_con_modelo(mod_28d, input_data)
             st.markdown(f"""
             <div class="result-card">
                 <div class="result-value">{int(round(pred))} <span class="result-unit">kg/cm²</span></div>
@@ -191,7 +234,7 @@ if st.button("Calcular Predicción", use_container_width=True):
             st.error("No se encontró el archivo 'modelo_M34_28d_produccion.pkl'.")
     else:
         if mod_1d is not None:
-            pred = float(mod_1d.predict(input_data)[0])
+            pred = predecir_con_modelo(mod_1d, input_data)
             st.markdown(f"""
             <div class="result-card">
                 <div class="result-value">{int(round(pred))} <span class="result-unit">kg/cm²</span></div>
@@ -203,7 +246,7 @@ if st.button("Calcular Predicción", use_container_width=True):
 # Pie de página institucional
 st.markdown("""
 <div class="footer-disclaimer">
-    <b>QuAI Industrial v1.0</b> — Sistema Predictivo de Inteligencia Artificial para Control de Calidad.<br>
-    Las estimaciones generadas se basan en modelamiento estadístico y fisicoquímico de proceso; no sustituyen los ensayos físicos oficiales de laboratorio bajo norma ASTM C109.
+    <b>QuAI presenta M.A.R.C.O. v1.0</b> — Machine learning Algorithm for Resistance and Cement Optimization by Marco Martínez.<br>
+    Las estimaciones generadas se basan en modelamiento fisicoquímico y estadístico de planta; no sustituyen los ensayos físicos destructivos oficiales bajo norma ASTM C109.
 </div>
 """, unsafe_allow_html=True)
