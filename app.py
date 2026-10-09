@@ -5,22 +5,20 @@ import os
 
 # Configuración de página
 st.set_page_config(
-    page_title="UNACEM | Predictor de Resistencia",
+    page_title="QuAI | UNACEM Atocongo",
     page_icon="🏭",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# Estilos CSS avanzados (Compacto, Responsive y Sofisticado)
+# Estilos CSS
 st.markdown("""
 <style>
-    /* Compactar márgenes para encajar todo en una sola pantalla */
     .block-container {
         padding-top: 1.2rem !important;
-        padding-bottom: 2rem !important;
+        padding-bottom: 1.5rem !important;
         max-width: 95% !important;
     }
-    
     h1 {
         font-size: 1.85rem !important;
         font-weight: 700 !important;
@@ -32,8 +30,6 @@ st.markdown("""
         color: #9ca3af;
         margin-bottom: 0.8rem;
     }
-    
-    /* Inputs numéricos compactos */
     div[data-testid="stNumberInput"] label {
         font-size: 0.82rem !important;
         font-weight: 600 !important;
@@ -44,49 +40,48 @@ st.markdown("""
         font-size: 0.9rem !important;
         padding: 4px 8px !important;
     }
-    
-    /* Botón corporativo UNACEM */
     div.stButton > button:first-child {
         background: linear-gradient(90deg, #E30613 0%, #B8000C 100%);
         color: #ffffff;
         border: none;
         border-radius: 6px;
         font-weight: 600;
-        font-size: 1rem;
-        padding: 10px 20px;
+        font-size: 1.05rem;
+        padding: 12px 20px;
         box-shadow: 0 4px 14px rgba(227, 6, 19, 0.25);
         transition: all 0.2s ease;
     }
     div.stButton > button:first-child:hover {
         background: linear-gradient(90deg, #FF1A27 0%, #D0000E 100%);
         transform: translateY(-1px);
-        box-shadow: 0 6px 18px rgba(227, 6, 19, 0.4);
     }
-    
-    /* Tarjeta de resultado industrial */
     .result-card {
         background: radial-gradient(circle at top, #1f242e 0%, #11141a 100%);
         border: 1px solid #303642;
-        border-radius: 10px;
-        padding: 22px;
+        border-radius: 12px;
+        padding: 24px;
         text-align: center;
         margin-top: 15px;
         box-shadow: 0 4px 20px rgba(0,0,0,0.35);
     }
     .result-value {
-        font-size: 3.2rem;
+        font-size: 3.8rem;
         font-weight: 800;
         color: #f9fafb;
+        line-height: 1;
     }
     .result-unit {
-        font-size: 1.3rem;
+        font-size: 1.4rem;
         color: #E30613;
         font-weight: 700;
     }
-    .result-range {
-        font-size: 0.95rem;
-        color: #9ca3af;
-        margin-top: 6px;
+    .footer-disclaimer {
+        text-align: center;
+        color: #6b7280;
+        font-size: 0.78rem;
+        margin-top: 2rem;
+        padding-top: 1rem;
+        border-top: 1px solid #1f242e;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -96,38 +91,40 @@ st.markdown("""
 def cargar_modelos():
     m1 = None
     m28 = None
-    for f in ["modelo_GU_1dia.pkl", "modelo_xgboost_gu.pkl"]:
-        if os.path.exists(f):
-            m1 = joblib.load(f)
+    
+    # Modelo 1 Día (M35)
+    for ruta in ["modelo_M35_1dia_produccion.pkl", "modelo_GU_1dia.pkl", "modelo_xgboost_gu.pkl"]:
+        if os.path.exists(ruta):
+            m1 = joblib.load(ruta)
             break
-    if os.path.exists("modelo_M34_28d_produccion.pkl"):
-        m28 = joblib.load("modelo_M34_28d_produccion.pkl")
+            
+    # Modelo 28 Días (M34)
+    for ruta in ["modelo_M34_28d_produccion.pkl", "modelo_GU_28d_produccion.pkl"]:
+        if os.path.exists(ruta):
+            m28 = joblib.load(ruta)
+            break
+
     return m1, m28
 
 mod_1d, mod_28d = cargar_modelos()
 
-# Encabezado institucional
+# Encabezado
 col_logo, col_tit = st.columns([1.8, 5.2])
-
 with col_logo:
     if os.path.exists("unacem_logo.png"):
         st.image("unacem_logo.png", width=220)
-
 with col_tit:
     st.markdown("<h1>Sistema Predictivo de Resistencia a la Compresión</h1>", unsafe_allow_html=True)
     st.markdown("<div class='sub-meta'>División de Control de Calidad Atocongo &nbsp;|&nbsp; Elaborado por: <b>Martínez Sánchez, Marco Antonio Uriel</b></div>", unsafe_allow_html=True)
 
-# Controles de configuración operativa
+# Controles de configuración
 c_tipo, c_horiz, c_mod = st.columns([2.5, 2.5, 2])
-
 with c_tipo:
     tipo_cemento = st.selectbox("Tipo de Cemento", ["Cemento Tipo GU"])
-
 with c_horiz:
     horizonte = st.selectbox("Horizonte de Producción", ["28 Días", "1 Día"])
-
 with c_mod:
-    modelo_nombre = "LightGBM" if "28 Días" in horizonte else "XGBoost"
+    modelo_nombre = "LightGBM (M34)" if "28 Días" in horizonte else "XGBoost (M35)"
     st.text_input("Modelo Activo", value=modelo_nombre, disabled=True)
 
 st.markdown("<hr style='margin: 0.7rem 0; border-color: #262b33;'>", unsafe_allow_html=True)
@@ -161,7 +158,7 @@ with c4:
 
 st.write("")
 
-# Acción e Inferencia
+# Cálculo e Inferencia
 if st.button("Calcular Predicción", use_container_width=True):
     input_data = pd.DataFrame([{
         '%Caliza': caliza,
@@ -185,24 +182,28 @@ if st.button("Calcular Predicción", use_container_width=True):
     if "28 Días" in horizonte:
         if mod_28d is not None:
             pred = float(mod_28d.predict(input_data)[0])
-            mae = 9.27
             st.markdown(f"""
             <div class="result-card">
-                <div class="result-value">{pred:.1f} <span class="result-unit">kg/cm²</span></div>
-                <div class="result-range">Intervalo de confianza industrial (±1 MAE): <b>{pred - mae:.1f} — {pred + mae:.1f} kg/cm²</b></div>
+                <div class="result-value">{int(round(pred))} <span class="result-unit">kg/cm²</span></div>
             </div>
             """, unsafe_allow_html=True)
         else:
-            st.error("No se encontró el archivo 'modelo_M34_28d_produccion.pkl' en el repositorio.")
+            st.error("No se encontró el archivo 'modelo_M34_28d_produccion.pkl'.")
     else:
         if mod_1d is not None:
             pred = float(mod_1d.predict(input_data)[0])
-            mae = 5.67
             st.markdown(f"""
             <div class="result-card">
-                <div class="result-value">{pred:.1f} <span class="result-unit">kg/cm²</span></div>
-                <div class="result-range">Intervalo de confianza industrial (±1 MAE): <b>{pred - mae:.1f} — {pred + mae:.1f} kg/cm²</b></div>
+                <div class="result-value">{int(round(pred))} <span class="result-unit">kg/cm²</span></div>
             </div>
             """, unsafe_allow_html=True)
         else:
-            st.error("No se encontró el modelo de 1 día en el repositorio.")
+            st.error("No se encontró el archivo 'modelo_M35_1dia_produccion.pkl'.")
+
+# Pie de página institucional
+st.markdown("""
+<div class="footer-disclaimer">
+    <b>QuAI Industrial v1.0</b> — Sistema Predictivo de Inteligencia Artificial para Control de Calidad.<br>
+    Las estimaciones generadas se basan en modelamiento estadístico y fisicoquímico de proceso; no sustituyen los ensayos físicos oficiales de laboratorio bajo norma ASTM C109.
+</div>
+""", unsafe_allow_html=True)
