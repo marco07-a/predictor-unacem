@@ -1,7 +1,9 @@
 streamlit
 pandas
 numpy
-joblib
 scikit-learn
-xgboost
 lightgbm
+xgboost
+joblib
+plotly
+openpyxl
