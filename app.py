@@ -5,14 +5,18 @@ import plotly.graph_objects as go
 import plotly.express as px
 import joblib
 import os
+import sys
 import re
 import io
+import time
+import base64
 import unicodedata
 from sklearn.base import BaseEstimator, TransformerMixin, RegressorMixin
+from sklearn.impute import SimpleImputer
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 # ==============================================================================
-# 0. DEFINICIÓN DE CLASES PERSONALIZADAS (Para deserializar .pkl avanzados)
+# 0. PARCHE DE COMPATIBILIDAD SKLEARN (COLAB <-> STREAMLIT CLOUD PYTHON 3.14)
 # ==============================================================================
 class IngenieriaQuimicaCemento(BaseEstimator, TransformerMixin):
     def __init__(self, tipo_cemento='HS'):
@@ -58,53 +62,138 @@ class CalibradorVarianzaConformal(BaseEstimator, RegressorMixin):
         y_hat = self.predict(X)
         return y_hat, y_hat - self.q_conformal_, y_hat + self.q_conformal_
 
+setattr(sys.modules["__main__"], "IngenieriaQuimicaCemento", IngenieriaQuimicaCemento)
+setattr(sys.modules["__main__"], "CalibradorVarianzaConformal", CalibradorVarianzaConformal)
+
+def reparar_compatibilidad_sklearn(obj):
+    """Repara atributos internos (_fill_dtype / _fit_dtype) de SimpleImputer entre versiones de sklearn."""
+    if obj is None:
+        return None
+    if isinstance(obj, SimpleImputer):
+        if not hasattr(obj, "_fill_dtype"):
+            obj._fill_dtype = getattr(obj, "_fit_dtype", np.dtype("float64"))
+        if not hasattr(obj, "_fit_dtype"):
+            obj._fit_dtype = getattr(obj, "_fill_dtype", np.dtype("float64"))
+    if hasattr(obj, "steps"):
+        for _, step in obj.steps:
+            reparar_compatibilidad_sklearn(step)
+    if hasattr(obj, "estimators_"):
+        for est in obj.estimators_:
+            reparar_compatibilidad_sklearn(est)
+    if hasattr(obj, "transformer_list"):
+        for _, tr in obj.transformer_list:
+            reparar_compatibilidad_sklearn(tr)
+    if hasattr(obj, "model_"):
+        reparar_compatibilidad_sklearn(obj.model_)
+    if hasattr(obj, "base_estimator"):
+        reparar_compatibilidad_sklearn(obj.base_estimator)
+    return obj
+
 
 # ==============================================================================
-# 1. CONFIGURACIÓN DE PÁGINA Y ESTILOS CSS INDUSTRIALES UNACEM
+# 1. CONFIGURACIÓN DE PÁGINA Y UTILIDAD DE LOGO EN BASE64
 # ==============================================================================
 st.set_page_config(
-    page_title="QuAI | M.A.R.C.O. v2.0 - UNACEM",
+    page_title="DCCAI | UNACEM - DCCA Atocongo",
     page_icon="🏭",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
+def obtener_logo_b64(ruta_logo="unacem_logo.png"):
+    if os.path.exists(ruta_logo):
+        with open(ruta_logo, "rb") as f:
+            return base64.b64encode(f.read()).decode("utf-8")
+    return None
+
+LOGO_B64 = obtener_logo_b64()
+
+
+# ==============================================================================
+# 2. ESTILOS CSS AVANZADOS + PANTALLA DE PRESENTACIÓN (SPLASH SCREEN)
+# ==============================================================================
 st.markdown("""
 <style>
     .block-container {
-        padding-top: 1.1rem !important;
+        padding-top: 1.0rem !important;
         padding-bottom: 1.5rem !important;
         max-width: 96% !important;
     }
-    .brand-tag {
-        font-size: 0.82rem;
-        font-weight: 700;
+    .splash-box {
+        background: radial-gradient(circle at center, #1f242e 0%, #0d0f14 100%);
+        border: 1px solid #303642;
+        border-top: 4px solid #E30613;
+        border-radius: 16px;
+        padding: 55px 30px;
+        text-align: center;
+        margin: 40px auto;
+        max-width: 780px;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.65);
+    }
+    .splash-dcca {
+        font-size: 1.15rem;
+        font-weight: 800;
         color: #E30613;
-        letter-spacing: 1.5px;
+        letter-spacing: 2.2px;
+        text-transform: uppercase;
+        margin-top: 18px;
+        margin-bottom: 8px;
+    }
+    .splash-title {
+        font-size: 2.3rem;
+        font-weight: 800;
+        color: #ffffff;
+        letter-spacing: -0.5px;
+        margin-bottom: 10px;
+    }
+    .splash-author {
+        margin-top: 24px;
+        padding-top: 18px;
+        border-top: 1px solid #2d3340;
+        font-size: 1.02rem;
+        color: #e5e7eb;
+    }
+    .header-banner {
+        background: linear-gradient(90deg, #14171f 0%, #1c212b 100%);
+        border: 1px solid #2d3340;
+        border-left: 5px solid #E30613;
+        border-radius: 10px;
+        padding: 14px 20px;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+    .brand-tag {
+        font-size: 0.85rem;
+        font-weight: 800;
+        color: #E30613;
+        letter-spacing: 1.6px;
         text-transform: uppercase;
         margin-bottom: 2px;
     }
-    h1 {
-        font-size: 1.85rem !important;
-        font-weight: 700 !important;
-        letter-spacing: -0.5px;
-        margin-top: 0 !important;
-        margin-bottom: 0.2rem !important;
+    .main-title {
+        font-size: 1.65rem;
+        font-weight: 800;
+        color: #ffffff;
+        margin: 0;
+        line-height: 1.2;
     }
-    .sub-meta {
-        font-size: 0.9rem;
-        color: #9ca3af;
-        margin-bottom: 0.8rem;
+    .author-badge {
+        background: rgba(227, 6, 19, 0.12);
+        border: 1px solid rgba(227, 6, 19, 0.4);
+        border-radius: 8px;
+        padding: 8px 14px;
+        text-align: right;
+        font-size: 0.82rem;
+        color: #f3f4f6;
     }
     div[data-testid="stNumberInput"] label {
         font-size: 0.82rem !important;
         font-weight: 600 !important;
         color: #d1d5db !important;
-    }
-    div[data-testid="stNumberInput"] input {
-        border-radius: 6px !important;
-        font-size: 0.9rem !important;
-        padding: 4px 8px !important;
     }
     div.stButton > button:first-child {
         background: linear-gradient(90deg, #E30613 0%, #B8000C 100%);
@@ -115,11 +204,6 @@ st.markdown("""
         font-size: 1.05rem;
         padding: 12px 20px;
         box-shadow: 0 4px 14px rgba(227, 6, 19, 0.25);
-        transition: all 0.2s ease;
-    }
-    div.stButton > button:first-child:hover {
-        background: linear-gradient(90deg, #FF1A27 0%, #D0000E 100%);
-        transform: translateY(-1px);
     }
     .result-card {
         background: radial-gradient(circle at top, #1f242e 0%, #11141a 100%);
@@ -171,8 +255,8 @@ st.markdown("""
     }
     .footer-disclaimer {
         text-align: center;
-        color: #6b7280;
-        font-size: 0.78rem;
+        color: #9ca3af;
+        font-size: 0.80rem;
         margin-top: 2rem;
         padding-top: 1rem;
         border-top: 1px solid #1f242e;
@@ -180,9 +264,35 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# PANTALLA DE PRESENTACIÓN INICIAL (SPLASH SCREEN DE 3 SEGUNDOS)
+if "splash_mostrado" not in st.session_state:
+    placeholder = st.empty()
+    logo_html = f'<img src="data:image/png;base64,{LOGO_B64}" style="max-height:85px; margin-bottom:10px;">' if LOGO_B64 else '<div style="font-size:3rem;">🏭</div>'
+    with placeholder.container():
+        st.markdown(f"""
+        <div class="splash-box">
+            {logo_html}
+            <div class="splash-dcca">UNACEM &bull; DIVISIÓN DE CONTROL DE CALIDAD ATOCONGO - DCCA</div>
+            <div class="splash-title">DCCAI | QuAI &mdash; M.A.R.C.O. v2.0</div>
+            <div style="color:#9ca3af; font-size:1.0rem;">
+                Sistema Inteligente de Predicción de Resistencia a la Compresión y Optimización Quimiométrica (GU &bull; Tipo I &bull; HS)
+            </div>
+            <div class="splash-author">
+                <b>Elaborado por:</b> Ing. Marco Antonio Uriel Martínez Sánchez<br>
+                <span style="font-size:0.86rem; color:#9ca3af;">Martínez Sánchez, Marco Antonio Uriel</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        barra = st.progress(0, text="Inicializando motores quimiométricos de UNACEM - DCCA...")
+        for pct in range(0, 101, 25):
+            time.sleep(0.40)
+            barra.progress(pct, text="Cargando modelos predictivos (Cemento Tipo GU, Tipo I y Tipo HS)...")
+    placeholder.empty()
+    st.session_state["splash_mostrado"] = True
+
 
 # ==============================================================================
-# 2. CATÁLOGO QUIMIOMÉTRICO POR TIPO DE CEMENTO (GU: 16, TI: 15, HS: 18)
+# 3. CATÁLOGO QUIMIOMÉTRICO POR TIPO DE CEMENTO (GU: 16, TI: 15, HS: 18)
 # ==============================================================================
 CONFIG_CEMENTOS = {
     "Cemento Tipo GU (16 Variables)": {
@@ -251,7 +361,7 @@ CONFIG_CEMENTOS = {
 
 
 # ==============================================================================
-# 3. CARGA INTELIGENTE DE LOS 12 MODELOS (+ VARIANTES PRO Y CASCADA)
+# 4. CARGA ROBUSTA DE LOS MODELOS (.PKL) CON REPARACIÓN AUTOMÁTICA
 # ==============================================================================
 @st.cache_resource
 def cargar_repositorio_modelos():
@@ -279,26 +389,27 @@ def cargar_repositorio_modelos():
         }
     }
     repo = {"GU": {}, "TI": {}, "HS": {}}
+    errores_carga = {}
     for cem, edades in candidatos.items():
         for edad, rutas in edades.items():
-            modelo_cargado = None
-            ruta_activa = None
+            modelo_cargado, ruta_activa = None, None
             for r in rutas:
                 if os.path.exists(r):
                     try:
-                        modelo_cargado = joblib.load(r)
+                        raw_mod = joblib.load(r)
+                        modelo_cargado = reparar_compatibilidad_sklearn(raw_mod)
                         ruta_activa = r
                         break
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        errores_carga[r] = str(e)
             repo[cem][edad] = (modelo_cargado, ruta_activa)
-    return repo
+    return repo, errores_carga
 
-REPO_MODELOS = cargar_repositorio_modelos()
+REPO_MODELOS, ERRORES_PKL = cargar_repositorio_modelos()
 
 
 # ==============================================================================
-# 4. MOTOR DE INFERENCIA UNIVERSAL Y EXPLICABILIDAD QUIMIOMÉTRICA LOCAL
+# 5. MOTOR DE INFERENCIA A PRUEBA DE FALLOS DE VERSIÓN SKLEARN
 # ==============================================================================
 def normalizar_nombre(texto):
     return re.sub(
@@ -336,22 +447,39 @@ def alinear_dataframe(modelo, df_input, features_esperadas):
             df_alineado[col] = 0.0
     return df_alineado
 
+def ejecutar_predict_seguro(modelo, df_aln):
+    """Ejecuta predict reparando SimpleImputer o saltando al estimador final si cambia la API de sklearn."""
+    reparar_compatibilidad_sklearn(modelo)
+    try:
+        return np.asarray(modelo.predict(df_aln), dtype=float)
+    except AttributeError:
+        # Respaldo directo: imputa -9999 manualmente y ejecuta los pasos restantes del Pipeline
+        X_val = df_aln.fillna(-9999.0).values
+        if hasattr(modelo, "steps"):
+            for nombre_paso, paso in modelo.steps[:-1]:
+                if not isinstance(paso, SimpleImputer):
+                    X_val = paso.transform(X_val)
+            return np.asarray(modelo.steps[-1][1].predict(X_val), dtype=float)
+        raise
+
 def predecir_con_modelo(modelo, df_input, features_esperadas, sigma_fallback=10.0):
-    """Devuelve (predicciones_array, p10_array, p90_array)."""
     df_aln = alinear_dataframe(modelo, df_input, features_esperadas)
     if hasattr(modelo, "predict_interval"):
-        y_hat, p10, p90 = modelo.predict_interval(df_aln)
-        return np.asarray(y_hat, dtype=float), np.asarray(p10, dtype=float), np.asarray(p90, dtype=float)
+        try:
+            reparar_compatibilidad_sklearn(modelo)
+            y_hat, p10, p90 = modelo.predict_interval(df_aln)
+            return np.asarray(y_hat, dtype=float), np.asarray(p10, dtype=float), np.asarray(p90, dtype=float)
+        except AttributeError:
+            raw_pred = ejecutar_predict_seguro(modelo.model_, df_aln)
+            y_hat = modelo.mu_y_ + modelo.factor_escala_ * (raw_pred - modelo.mu_pred_)
+            q = getattr(modelo, "q_conformal_", 1.2816 * sigma_fallback)
+            return y_hat, y_hat - q, y_hat + q
     else:
-        y_hat = np.asarray(modelo.predict(df_aln), dtype=float)
-        q_80 = 1.2816 * sigma_fallback  # Intervalo P10-P90 basado en RMSE de validación
+        y_hat = ejecutar_predict_seguro(modelo, df_aln)
+        q_80 = 1.2816 * sigma_fallback
         return y_hat, y_hat - q_80, y_hat + q_80
 
 def calcular_contribucion_local_kg(modelo, df_fila, defaults_dict, features_esperadas):
-    """
-    Calcula cuántos kg/cm² aporta o resta cada fase mineralógica en el lote actual
-    frente al estándar de operación (Perturbación Marginal Exacta / SHAP Local).
-    """
     df_base = pd.DataFrame([{k: defaults_dict[k] for k in features_esperadas}])
     pred_base, _, _ = predecir_con_modelo(modelo, df_base, features_esperadas)
     val_base = float(pred_base[0])
@@ -366,18 +494,36 @@ def calcular_contribucion_local_kg(modelo, df_fila, defaults_dict, features_espe
 
 
 # ==============================================================================
-# 5. ENCABEZADO INSTITUCIONAL Y SELECTOR MULTI-CEMENTO
+# 6. BANNER INSTITUCIONAL PERMANENTE (UNACEM + DCCA + AUTOR)
 # ==============================================================================
-st.markdown('<div class="brand-tag">UNACEM &bull; División de Control de Calidad Atocongo (DCCAI)</div>', unsafe_allow_html=True)
-st.title("QuAI | M.A.R.C.O. v2.0 — Inteligencia Quimiométrica de Cementos")
-st.markdown('<div class="sub-meta">Predicción Multi-Edad, Intervalos Conformales (P10–P90) y Auditoría Cristalográfica XRD Rietveld</div>', unsafe_allow_html=True)
+logo_header_html = f'<img src="data:image/png;base64,{LOGO_B64}" style="height:54px; margin-right:16px;">' if LOGO_B64 else ''
+
+st.markdown(f"""
+<div class="header-banner">
+    <div style="display:flex; align-items:center;">
+        {logo_header_html}
+        <div>
+            <div class="brand-tag">UNACEM &bull; DIVISIÓN DE CONTROL DE CALIDAD ATOCONGO - DCCA</div>
+            <div class="main-title">DCCAI | QuAI &mdash; M.A.R.C.O. v2.0</div>
+            <div style="font-size:0.84rem; color:#9ca3af;">
+                Predicción Multi-Edad de Resistencia a la Compresión (1, 3, 7 y 28 Días) y Auditoría Quimiométrica XRD
+            </div>
+        </div>
+    </div>
+    <div class="author-badge">
+        <div style="font-size:0.72rem; color:#9ca3af; text-transform:uppercase; letter-spacing:1px;">Elaborado por</div>
+        <div style="font-weight:700; color:#ffffff; font-size:0.92rem;">Ing. Marco Antonio Uriel Martínez Sánchez</div>
+        <div style="font-size:0.76rem; color:#d1d5db;">Martínez Sánchez, Marco Antonio Uriel</div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 col_sel1, col_sel2, col_sel3 = st.columns([1.4, 1.4, 1.2])
 with col_sel1:
     tipo_cemento_label = st.selectbox(
         "Familia de Cemento",
         list(CONFIG_CEMENTOS.keys()),
-        index=2  # Inicia en HS o cámbialo a 0 para GU
+        index=2
     )
 with col_sel2:
     horizonte = st.selectbox(
@@ -396,12 +542,12 @@ with col_sel3:
     cod_cem = cfg["codigo"]
     usar_cascada_28d = st.toggle(
         "Activar Modo Cascada 28d (Inyectar 1d/3d real)",
-        value=False,
-        help="Incorpora la rotura real de prensa a 1d y 3d para eliminar el efecto de compresión a la media en 28 días."
+        value=False
     )
 
+
 # ==============================================================================
-# 6. PESTAÑAS DE OPERACIÓN INDUSTRIAL
+# 7. PESTAÑAS DE OPERACIÓN INDUSTRIAL
 # ==============================================================================
 tab_sim, tab_batch, tab_spc = st.tabs([
     "🎛️ Simulador Quimiométrico & Explicabilidad SHAP",
@@ -409,9 +555,6 @@ tab_sim, tab_batch, tab_spc = st.tabs([
     "📈 Diagnóstico de Residuales & Control Estadístico (ASTM C109)"
 ])
 
-# ------------------------------------------------------------------------------
-# PESTAÑA 1: SIMULADOR INDIVIDUAL + FCC + WATERFALL SHAP + CURVA MULTI-EDAD
-# ------------------------------------------------------------------------------
 with tab_sim:
     defaults = cfg["defaults"]
     features_activas = cfg["features"]
@@ -455,17 +598,14 @@ with tab_sim:
         gypsum = st.number_input("Gypsum", value=float(defaults['Gypsum']), step=0.10, format="%.2f")
         fluidez = st.number_input("Fluidez (%)", value=float(defaults['Fluidez']), step=1.0, format="%.1f")
 
-    # Campos adicionales si se activa el Modo Cascada para 28 días
     res_1d_real, res_3d_real = None, None
     if usar_cascada_28d:
-        st.markdown("###### 🔗 Datos de Prensa Temprana para Cascada a 28 Días")
         cc1, cc2 = st.columns(2)
         with cc1:
             res_1d_real = st.number_input("Resistencia Real 1 Día (kg/cm²)", value=140.0, step=1.0)
         with cc2:
             res_3d_real = st.number_input("Resistencia Real 3 Días (kg/cm²)", value=252.0, step=1.0)
 
-    # Construcción del registro actual
     registro_actual = {
         '%Caliza': caliza, '%Yeso': yeso, '%Puzolana': puzolana, '%Escoria': escoria,
         'M325': m325, 'Blaine': blaine, 'SO3': so3, 'Álcali_Eq': alcali_eq,
@@ -480,7 +620,6 @@ with tab_sim:
 
     df_input_single = pd.DataFrame([registro_actual])
 
-    # KPIs Quimiométricos en Tiempo Real + Guardrails 3-Sigma
     fcc_real = 100.0 - (caliza + yeso + puzolana + escoria)
     ratio_silicatos = alita / (belita + 0.1)
     sulf_solubles = gypsum + 1.5 * hemidrato
@@ -493,14 +632,13 @@ with tab_sim:
     k3.markdown(f'<div class="kpi-mini"><div class="kpi-mini-title">Sulfatos Solubles</div><div class="kpi-mini-val">{sulf_solubles:.2f}%</div></div>', unsafe_allow_html=True)
     k4.markdown(f'<div class="kpi-mini"><div class="kpi-mini-title">Balance SO3 / (C3A+Álc)</div><div class="kpi-mini-val">{balance_so3:.2f}</div></div>', unsafe_allow_html=True)
 
-    # Verificación de Dominio Operativo (Alerta Fuera de Rango)
     alertas_rango = []
     for var_chk, (vmin, vmax) in cfg["rangos_3sigma"].items():
         val_u = registro_actual.get(var_chk, 0.0)
         if val_u < vmin or val_u > vmax:
             alertas_rango.append(f"**{var_chk}** ({val_u}) fuera de banda habitual [{vmin} – {vmax}]")
     if alertas_rango:
-        st.warning("⚠️ **Alerta de Dominio Quimiométrico (Extrapolación):** " + " | ".join(alertas_rango))
+        st.warning("⚠️ **Alerta de Dominio Quimiométrico:** " + " | ".join(alertas_rango))
 
     if st.button("Calcular Predicción e Intervalo Conformal", use_container_width=True):
         mapa_edad = {"1 Día": "1d", "3 Días": "3d", "7 Días": "7d", "28 Días": "28d"}
@@ -536,7 +674,9 @@ with tab_sim:
                     df_imp = pd.DataFrame({
                         'Variable': list(impactos.keys()),
                         'Impacto_kg': list(impactos.values())
-                    }). assign(Abs=lambda x: x['Impacto_kg'].abs()).sort_values('Abs', ascending=True).tail(10)
+                    })
+                    df_imp['Abs'] = df_imp['Impacto_kg'].abs()
+                    df_imp = df_imp.sort_values('Abs', ascending=True).tail(10)
 
                     colores = ['#10b981' if v >= 0 else '#E30613' for v in df_imp['Impacto_kg']]
                     fig_wf = go.Figure(go.Bar(
@@ -553,16 +693,15 @@ with tab_sim:
                     )
                     st.plotly_chart(fig_wf, use_container_width=True)
             else:
-                st.error(f"No se encontró el archivo `.pkl` para **{cod_cem} - {edad_elegida}** en la carpeta actual.")
+                st.error(f"No se pudo cargar el archivo `.pkl` para **{cod_cem} - {edad_elegida}**.")
         else:
-            # VISTA MULTI-EDAD COMPLETA (1, 3, 7 y 28 DÍAS)
             edades_seq = ["1d", "3d", "7d", "28d"]
             dias_num = [1, 3, 7, 28]
             preds_c, preds_p10, preds_p90 = [], [], []
             cols_cards = st.columns(4)
 
             for idx, ed in enumerate(edades_seq):
-                mod_e, ruta_e = REPO_MODELOS[cod_cem][ed]
+                mod_e, _ = REPO_MODELOS[cod_cem][ed]
                 sigma_e = cfg["incertidumbre_base"][ed]
                 if mod_e is not None:
                     yp, l10, l90 = predecir_con_modelo(mod_e, df_input_single, features_activas, sigma_fallback=sigma_e)
@@ -605,9 +744,6 @@ with tab_sim:
                 )
                 st.plotly_chart(fig_curva, use_container_width=True)
 
-# ------------------------------------------------------------------------------
-# PESTAÑA 2: CARGA MASIVA EXCEL Y CÁLCULO AUTOMÁTICO DE MAE, MAPE Y RMSE
-# ------------------------------------------------------------------------------
 with tab_batch:
     st.markdown("##### 📂 Validación Masiva y Pronóstico de Lotes en Curado (`.xlsx`)")
     archivo_subido = st.file_uploader(
@@ -618,8 +754,8 @@ with tab_batch:
 
     if archivo_subido is not None:
         df_lotes = pd.read_excel(archivo_subido)
-        mod_b, ruta_b = REPO_MODELOS[cod_cem][edad_batch]
-        target_col = f"{edad_batch[:-1]}_d"  # '1_d', '3_d', '7_d', '28_d'
+        mod_b, _ = REPO_MODELOS[cod_cem][edad_batch]
+        target_col = f"{edad_batch[:-1]}_d"
 
         if mod_b is not None:
             y_b, p10_b, p90_b = predecir_con_modelo(
@@ -658,16 +794,13 @@ with tab_batch:
             st.download_button(
                 label=f"⬇️ Descargar Reporte Excel ({cod_cem} - {edad_batch})",
                 data=buffer.getvalue(),
-                file_name=f"QuAI_MARCO_Resultados_{cod_cem}_{edad_batch}.xlsx",
+                file_name=f"DCCAI_MARCO_Resultados_{cod_cem}_{edad_batch}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True
             )
         else:
-            st.error(f"Primero coloca el archivo `.pkl` de **{cod_cem} - {edad_batch}** en el directorio del proyecto.")
+            st.error(f"No se pudo cargar el archivo `.pkl` de **{cod_cem} - {edad_batch}**.")
 
-# ------------------------------------------------------------------------------
-# PESTAÑA 3: DIAGNÓSTICO DE RESIDUALES Y CARTA DE CONTROL SPC (ASTM C109)
-# ------------------------------------------------------------------------------
 with tab_spc:
     st.markdown("##### 📈 Auditoría de Residuales y Control Estadístico de Proceso (SPC)")
     if "ultimo_df_validado" in st.session_state:
@@ -678,7 +811,7 @@ with tab_spc:
         g1, g2 = st.columns(2)
         with g1:
             fig_sc = px.scatter(
-                x=y_r, y=y_p, labels={'x': 'Resistencia Real Prensa (kg/cm²)', 'y': 'Predicción QuAI (kg/cm²)'},
+                x=y_r, y=y_p, labels={'x': 'Resistencia Real Prensa (kg/cm²)', 'y': 'Predicción DCCAI (kg/cm²)'},
                 title=f"Predicción vs Real ({cod_cem} - {ed_v})"
             )
             min_v, max_v = min(y_r.min(), y_p.min()), max(y_r.max(), y_p.max())
@@ -701,7 +834,9 @@ with tab_spc:
 # Pie de página institucional
 st.markdown("""
 <div class="footer-disclaimer">
-    <b>QuAI presenta M.A.R.C.O. v2.0</b> (<i>Machine learning Algorithm for Resistance and Cement Optimization</i>) &nbsp;|&nbsp; by Marco Martínez<br>
-    QuAI es una IA de soporte quimiométrico. Las estimaciones e intervalos conformales complementan el aseguramiento de calidad y no sustituyen los ensayos físicos oficiales bajo norma ASTM C109.
+    <b>UNACEM &bull; DIVISIÓN DE CONTROL DE CALIDAD ATOCONGO - DCCA</b> &nbsp;|&nbsp;
+    <b>DCCAI / QuAI presenta M.A.R.C.O. v2.0</b> (<i>Machine learning Algorithm for Resistance and Cement Optimization</i>)<br>
+    <b>Elaborado por: Ing. Marco Antonio Uriel Martínez Sánchez</b> (Martínez Sánchez, Marco Antonio Uriel)<br>
+    Las estimaciones e intervalos conformales son herramientas de soporte operativo y no sustituyen los ensayos físicos oficiales bajo norma ASTM C109.
 </div>
 """, unsafe_allow_html=True)
