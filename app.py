@@ -97,7 +97,7 @@ st.set_page_config(
 )
 
 def obtener_data_uri_imagen(nombre_base):
-    """Detecta automáticamente .png, .jpg o .jpeg y lee la firma binaria real."""
+    """Detecta automáticamente .png, .jpg o .jpeg y verifica la firma binaria real."""
     for ext in ["", ".png", ".jpg", ".jpeg", ".PNG", ".JPG", ".JPEG"]:
         ruta = f"{nombre_base}{ext}"
         if os.path.exists(ruta) and os.path.isfile(ruta):
@@ -244,12 +244,17 @@ st.markdown("""
         padding: 24px;
         text-align: center;
         margin-top: 8px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
     }
     .result-value {
         font-size: 3.4rem;
         font-weight: 800;
         color: #f9fafb;
         line-height: 1.05;
+        margin: 4px 0;
     }
     .result-unit {
         font-size: 1.25rem;
@@ -258,8 +263,8 @@ st.markdown("""
     }
     .conformal-badge {
         display: inline-block;
-        margin-top: 10px;
-        padding: 5px 12px;
+        margin-top: 12px;
+        padding: 6px 14px;
         border-radius: 20px;
         background: rgba(227, 6, 19, 0.14);
         border: 1px solid rgba(227, 6, 19, 0.4);
@@ -269,8 +274,8 @@ st.markdown("""
     }
     .real-badge {
         display: inline-block;
-        margin-top: 8px;
-        padding: 4px 12px;
+        margin-top: 10px;
+        padding: 5px 14px;
         border-radius: 6px;
         background: rgba(16, 185, 129, 0.15);
         border: 1px solid rgba(16, 185, 129, 0.45);
@@ -307,31 +312,33 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# PANTALLA DE PRESENTACIÓN INICIAL (PAUSADA Y EJECUTIVA)
+# PANTALLA DE PRESENTACIÓN INICIAL (SPLASH SCREEN DE 4 SEGUNDOS)
 if "splash_mostrado" not in st.session_state:
     placeholder = st.empty()
-    logo_html = f'<img src="{LOGO_URI}" style="max-height:82px; margin-bottom:10px;">' if LOGO_URI else ''
+    logo_html = f'<div><img src="{LOGO_URI}" style="max-height:82px; margin-bottom:10px;"></div>' if LOGO_URI else ''
     bolsas_splash = "".join([
-        f'<img src="{uri}" style="height:75px; margin:0 12px; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,0.5);">'
+        f'<img src="{uri}" style="height:78px; margin:0 12px; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,0.5);">'
         for uri in BOLSAS_URI.values() if uri
     ])
     div_bolsas_splash = f'<div style="margin: 18px 0;">{bolsas_splash}</div>' if bolsas_splash else ''
 
+    splash_html = (
+        f'<div class="splash-box">'
+        f'{logo_html}'
+        f'<div class="splash-dcca">DIVISIÓN DE CONTROL DE CALIDAD ATOCONGO - DCCA</div>'
+        f'<div class="splash-title">DCC<span style="color:#E30613;">AI</span></div>'
+        f'<div style="color:#d1d5db; font-size:1.1rem; font-weight:500; margin-bottom:14px;">'
+        f'Sistema Inteligente de Predicción de Resistencia a la Compresión'
+        f'</div>'
+        f'{div_bolsas_splash}'
+        f'<div style="border-top:1px solid #2d3340; padding-top:16px; font-size:1.0rem; color:#f3f4f6;">'
+        f'<b>Elaborado por:</b> Ing. CIP Marco Antonio Uriel Martínez Sánchez'
+        f'</div>'
+        f'</div>'
+    )
+
     with placeholder.container():
-        st.markdown(f"""
-        <div class="splash-box">
-            {logo_html}
-            <div class="splash-dcca">DIVISIÓN DE CONTROL DE CALIDAD ATOCONGO - DCCA</div>
-            <div class="splash-title">DCC<span style="color:#E30613;">AI</span></div>
-            <div style="color:#d1d5db; font-size:1.1rem; font-weight:500; margin-bottom:14px;">
-                Sistema Inteligente de Predicción de Resistencia a la Compresión
-            </div>
-            {div_bolsas_splash}
-            <div style="border-top:1px solid #2d3340; padding-top:16px; font-size:1.0rem; color:#f3f4f6;">
-                <b>Elaborado por:</b> Ing. CIP Marco Antonio Uriel Martínez Sánchez
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(splash_html, unsafe_allow_html=True)
         barra = st.progress(0, text="Inicializando arquitectura DCCAI...")
         for pct in range(0, 101, 20):
             time.sleep(0.80)
@@ -401,7 +408,6 @@ CONFIG_CEMENTOS = {
     }
 }
 
-# Mapeo exacto entre los encabezados de exportación de la BD y las variables del modelo
 MAPEO_BD_EXACTO = {
     'cal': '%Caliza', 'caliza': '%Caliza', 'porcentajecaliza': '%Caliza',
     'yes': '%Yeso', 'yeso': '%Yeso', 'porcentajeyeso': '%Yeso',
@@ -484,27 +490,37 @@ def normalizar_nombre(texto):
         unicodedata.normalize('NFKD', str(texto)).encode('ASCII', 'ignore').decode('utf-8').lower()
     )
 
+def parsear_fecha_robusta(serie_fecha):
+    """Convierte fechas de Excel incluso cuando vienen con '12:00 a. m.' o 'p. m.' en texto."""
+    limpia = (
+        serie_fecha.astype(str)
+        .str.replace(r'\s+12:00\s*a\.?\s*m\.?', '', flags=re.IGNORECASE, regex=True)
+        .str.replace(r'a\.?\s*m\.?', 'AM', flags=re.IGNORECASE, regex=True)
+        .str.replace(r'p\.?\s*m\.?', 'PM', flags=re.IGNORECASE, regex=True)
+        .str.strip()
+    )
+    return pd.to_datetime(limpia, errors='coerce')
+
 def limpiar_dataframe_lotes(df_raw, features_esperadas, defaults_cem, edad_seleccionada=None):
     """
-    1. Trunca inmediatamente desde la fila 'Promedio / Desviación Estandar' hacia abajo
-       (eliminando la fila de texto y las 2 filas numéricas de promedio y desviación).
-    2. Corta todas las columnas a la izquierda de 'Fecha' (N°, ALSE/FALSE y blancos).
-    3. Traduce todos los nombres crudos (%Cal, % PuzAre, % Slag, 24 hrs...) al estándar del modelo.
-    4. Conserva solo la columna de resistencia de la edad seleccionada (1_d, 3_d, 7_d o 28_d).
+    1. Trunca desde la fila 'Promedio / Desviación Estandar' hacia abajo.
+    2. Elimina todas las columnas a la izquierda de 'Fecha' (N°, ALSE/FALSE y blancos).
+    3. Renombra los encabezados crudos (%Cal, % PuzAre, % Slag, 24 hrs...) al estándar del modelo.
+    4. Conserva únicamente la columna de la edad seleccionada (1_d, 3_d, 7_d o 28_d).
     """
     df = df_raw.copy()
 
-    # PASO 1: Detectar la fila donde aparece "Promedio / Desviación Estandar" y cortar todo desde ahí hacia abajo
+    # PASO 1: Cortar desde la fila "Promedio / Desviación Estandar" hacia abajo
     idx_corte = None
     for i in range(len(df)):
         fila_texto = " ".join(df.iloc[i].astype(str).tolist()).lower()
-        if "promedio" in fila_texto or "desviacion" in fila_texto or "desviación" in fila_texto or "estandar" in fila_texto:
+        if any(p in fila_texto for p in ["promedio", "desviacion", "desviación", "estandar", "estándar"]):
             idx_corte = i
             break
     if idx_corte is not None:
         df = df.iloc[:idx_corte].copy()
 
-    # PASO 2: Localizar la columna 'Fecha' y eliminar todas las columnas previas (N°, ALSE/FALSE, blancos)
+    # PASO 2: Localizar 'Fecha' y descartar las columnas previas (N°, ALSE/FALSE, blancos)
     idx_col_fecha = None
     for j, col_name in enumerate(df.columns):
         if normalizar_nombre(col_name) in ['fecha', 'date', 'fechamolienda']:
@@ -523,18 +539,17 @@ def limpiar_dataframe_lotes(df_raw, features_esperadas, defaults_cem, edad_selec
             renombres[col] = 'Fecha'
     df = df.rename(columns=renombres)
 
-    # PASO 4: Si existe la columna 'Fecha', filtrar cualquier fila al final que no tenga Fecha válida
+    # PASO 4: Filtrar cualquier fila sin Fecha válida (o filas vacías si ya venía recortado)
     if 'Fecha' in df.columns:
-        fechas_parsed = pd.to_datetime(df['Fecha'], errors='coerce')
-        df = df[fechas_parsed.notna()].copy()
-        df['Fecha'] = pd.to_datetime(df['Fecha']).dt.strftime('%Y-%m-%d')
+        fechas_dt = parsear_fecha_robusta(df['Fecha'])
+        df = df[fechas_dt.notna()].copy()
+        df['Fecha'] = fechas_dt[fechas_dt.notna()].dt.strftime('%Y-%m-%d')
     else:
-        # Si es un Excel ya recortado sin columna Fecha, eliminar filas vacías
         cols_num = [c for c in features_esperadas if c in df.columns]
         if cols_num:
             df = df.dropna(subset=cols_num, how='all').copy()
 
-    # PASO 5: Construir DataFrame de entrada al modelo (rellenando vacíos aislados de receta con ffill/default)
+    # PASO 5: Construir DataFrame numérico para el modelo
     df_modelo = pd.DataFrame(index=df.index)
     cols_receta_fija = ['%Caliza', '%Yeso', '%Puzolana', '%Escoria']
     for col in features_esperadas:
@@ -547,7 +562,7 @@ def limpiar_dataframe_lotes(df_raw, features_esperadas, defaults_cem, edad_selec
         else:
             df_modelo[col] = defaults_cem.get(col, 0.0)
 
-    # PASO 6: Construir vista limpia conservando solo 'Fecha', las variables predictoras y la edad elegida
+    # PASO 6: Conservar solo Fecha, variables predictoras y la edad activa
     columnas_vista = []
     if 'Fecha' in df.columns:
         columnas_vista.append('Fecha')
@@ -621,21 +636,20 @@ def obtener_importancia_variables(modelo, df_fila, features_esperadas):
 # ==============================================================================
 logo_header_html = f'<img src="{LOGO_URI}" style="height:50px; margin-right:18px;">' if LOGO_URI else ''
 
-st.markdown(f"""
-<div class="header-banner">
-    <div style="display:flex; align-items:center;">
-        {logo_header_html}
-        <div>
-            <div class="brand-tag">DIVISIÓN DE CONTROL DE CALIDAD ATOCONGO - DCCA</div>
-            <div class="main-title">DCC<span style="color:#E30613;">AI</span> &mdash; Inteligencia Artificial Aplicada al Cemento</div>
-            <div class="main-subtitle">Sistema Inteligente de Predicción de Resistencia a la Compresión</div>
-        </div>
-    </div>
-    <div class="author-badge">
-        Ing. CIP Marco Antonio Uriel Martínez Sánchez
-    </div>
-</div>
-""", unsafe_allow_html=True)
+header_html = (
+    f'<div class="header-banner">'
+    f'<div style="display:flex; align-items:center;">'
+    f'{logo_header_html}'
+    f'<div>'
+    f'<div class="brand-tag">DIVISIÓN DE CONTROL DE CALIDAD ATOCONGO - DCCA</div>'
+    f'<div class="main-title">DCC<span style="color:#E30613;">AI</span> &mdash; Inteligencia Artificial Aplicada al Cemento</div>'
+    f'<div class="main-subtitle">Sistema Inteligente de Predicción de Resistencia a la Compresión</div>'
+    f'</div>'
+    f'</div>'
+    f'<div class="author-badge">Ing. CIP Marco Antonio Uriel Martínez Sánchez</div>'
+    f'</div>'
+)
+st.markdown(header_html, unsafe_allow_html=True)
 
 col_sel1, col_sel2, col_sel3, col_bag = st.columns([1.35, 1.25, 1.0, 1.1])
 with col_sel1:
@@ -660,25 +674,13 @@ with col_sel3:
 
 with col_bag:
     bag_uri = BOLSAS_URI.get(cod_cem)
-    if bag_uri:
-        st.markdown(f"""
-        <div class="bag-showcase">
-            <img src="{bag_uri}" style="height:58px; border-radius:4px;">
-            <div>
-                <div style="font-size:0.72rem; color:#E30613; font-weight:800; text-transform:uppercase;">{cfg["norma"]}</div>
-                <div style="font-size:0.95rem; color:#ffffff; font-weight:800;">{cfg["marca"]}</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown(f"""
-        <div class="bag-showcase">
-            <div>
-                <div style="font-size:0.72rem; color:#E30613; font-weight:800; text-transform:uppercase;">{cfg["norma"]}</div>
-                <div style="font-size:0.95rem; color:#ffffff; font-weight:800;">{cfg["marca"]}</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+    img_bag_top = f'<img src="{bag_uri}" style="height:58px; border-radius:4px;">' if bag_uri else ''
+    st.markdown(
+        f'<div class="bag-showcase">{img_bag_top}'
+        f'<div><div style="font-size:0.72rem; color:#E30613; font-weight:800; text-transform:uppercase;">{cfg["norma"]}</div>'
+        f'<div style="font-size:0.95rem; color:#ffffff; font-weight:800;">{cfg["marca"]}</div></div></div>',
+        unsafe_allow_html=True
+    )
 
 
 # ==============================================================================
@@ -705,7 +707,7 @@ with tab_sim:
                 f"Lote {i+1} | Fecha: {df_mem_vista['Fecha'].iloc[i]}" if 'Fecha' in df_mem_vista.columns else f"Lote #{i+1}"
                 for i in range(len(df_mem_vista))
             ]
-            lote_elegido = st.selectbox("🔍 Cargar automáticamente variables y Valor Real desde un lote del Excel:", opciones_lote)
+            lote_elegido = st.selectbox("🔍 Sincronizar variables y Valor Real desde un lote del Excel cargado:", opciones_lote)
             if lote_elegido != "Ingreso manual libre":
                 idx_lote = opciones_lote.index(lote_elegido) - 1
                 for f_col in features_activas:
@@ -829,26 +831,27 @@ with tab_sim:
                 html_real = ""
                 if valor_real_lote is not None:
                     desvio = abs(valor_real_lote - val_c)
-                    html_real = f'<br><div class="real-badge">✔️ Valor Real: {valor_real_lote:.0f} kg/cm² (MAE: {desvio:.1f} kg/cm²)</div>'
+                    html_real = f'<div><span class="real-badge">✔️ Valor Real: {valor_real_lote:.0f} kg/cm² (MAE: {desvio:.1f} kg/cm²)</span></div>'
 
-                bag_card_html = f'<img src="{bag_uri}" style="height:64px; margin-bottom:8px; border-radius:4px;"><br>' if bag_uri else ''
+                bag_card_html = f'<div style="margin-bottom:8px;"><img src="{bag_uri}" style="height:64px; border-radius:4px;"></div>' if bag_uri else ''
+
+                card_html = (
+                    f'<div class="result-card">'
+                    f'{bag_card_html}'
+                    f'<div style="font-size:0.82rem; color:#9ca3af; text-transform:uppercase; margin-bottom:6px;">'
+                    f'{tipo_cemento_label} &bull; {edad_label}'
+                    f'</div>'
+                    f'<div class="result-value">{int(round(val_c))} <span class="result-unit">kg/cm²</span></div>'
+                    f'{html_real}'
+                    f'<div><span class="conformal-badge">'
+                    f'🛡️ Intervalo Conformal (P10 – P90): <b>{val_p10:.0f}</b> a <b>{val_p90:.0f} kg/cm²</b>'
+                    f'</span></div>'
+                    f'</div>'
+                )
 
                 col_res, col_imp = st.columns([1.0, 1.4])
                 with col_res:
-                    st.markdown(f"""
-                    <div class="result-card">
-                        {bag_card_html}
-                        <div style="font-size:0.82rem; color:#9ca3af; text-transform:uppercase; margin-bottom:6px;">
-                            {tipo_cemento_label} &bull; {edad_label}
-                        </div>
-                        <div class="result-value">{int(round(val_c))} <span class="result-unit">kg/cm²</span></div>
-                        {html_real}
-                        <br>
-                        <div class="conformal-badge">
-                            🛡️ Intervalo Conformal (P10 – P90): <b>{val_p10:.0f}</b> a <b>{val_p90:.0f} kg/cm²</b>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.markdown(card_html, unsafe_allow_html=True)
 
                 with col_imp:
                     df_imp = obtener_importancia_variables(mod_obj, df_input_single, features_activas)
@@ -884,13 +887,14 @@ with tab_sim:
                     preds_c.append(float(yp[0]))
                     preds_p10.append(float(l10[0]))
                     preds_p90.append(float(l90[0]))
-                    cols_cards[idx].markdown(f"""
-                    <div class="result-card" style="padding:14px;">
-                        <div style="font-size:0.78rem; color:#9ca3af;">{etiquetas_ed[idx].upper()}</div>
-                        <div class="result-value" style="font-size:2.3rem;">{int(round(yp[0]))} <span class="result-unit" style="font-size:0.95rem;">kg/cm²</span></div>
-                        <div style="font-size:0.74rem; color:#9ca3af; margin-top:4px;">P10–P90: [{l10[0]:.0f} – {l90[0]:.0f}]</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    mini_card_html = (
+                        f'<div class="result-card" style="padding:14px;">'
+                        f'<div style="font-size:0.78rem; color:#9ca3af;">{etiquetas_ed[idx].upper()}</div>'
+                        f'<div class="result-value" style="font-size:2.3rem;">{int(round(yp[0]))} <span class="result-unit" style="font-size:0.95rem;">kg/cm²</span></div>'
+                        f'<div style="font-size:0.74rem; color:#9ca3af; margin-top:4px;">P10–P90: [{l10[0]:.0f} – {l90[0]:.0f}]</div>'
+                        f'</div>'
+                    )
+                    cols_cards[idx].markdown(mini_card_html, unsafe_allow_html=True)
                 else:
                     preds_c.append(np.nan)
                     preds_p10.append(np.nan)
@@ -1025,10 +1029,11 @@ with tab_spc:
 # ==============================================================================
 # 7. PIE DE PÁGINA INSTITUCIONAL
 # ==============================================================================
-st.markdown("""
-<div class="footer-disclaimer">
-    <b>UNACEM &mdash; DIVISIÓN DE CONTROL DE CALIDAD ATOCONGO (DCCAI)</b> &nbsp;|&nbsp;
-    <b>Elaborado por:</b> Ing. CIP Marco Antonio Uriel Martínez Sánchez<br>
-    Las estimaciones e intervalos conformales son herramientas de soporte operativo y pueden presentar variaciones de acuerdo al proceso.
-</div>
-""", unsafe_allow_html=True)
+footer_html = (
+    '<div class="footer-disclaimer">'
+    '<div><b>UNACEM &mdash; DIVISIÓN DE CONTROL DE CALIDAD ATOCONGO (DCCAI)</b> &nbsp;|&nbsp; '
+    '<b>Elaborado por:</b> Ing. CIP Marco Antonio Uriel Martínez Sánchez</div>'
+    '<div>Las estimaciones e intervalos conformales son herramientas de soporte operativo y pueden presentar variaciones de acuerdo al proceso.</div>'
+    '</div>'
+)
+st.markdown(footer_html, unsafe_allow_html=True)
