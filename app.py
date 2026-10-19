@@ -13,10 +13,10 @@ import base64
 import unicodedata
 from sklearn.base import BaseEstimator, TransformerMixin, RegressorMixin
 from sklearn.impute import SimpleImputer
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.metrics import mean_absolute_error, mean_squared_error
 
 # ==============================================================================
-# 0. CLASES PERSONALIZADAS Y REGISTRO EN __main__ PARA STREAMLIT CLOUD
+# 0. CLASES PERSONALIZADAS Y COMPATIBILIDAD SKLEARN / STREAMLIT CLOUD
 # ==============================================================================
 class IngenieriaQuimicaCemento(BaseEstimator, TransformerMixin):
     def __init__(self, tipo_cemento='HS'):
@@ -87,103 +87,140 @@ def reparar_compatibilidad_sklearn(obj):
 
 
 # ==============================================================================
-# 1. CONFIGURACIÓN DE PÁGINA Y ESTILOS CSS REFINADOS
+# 1. CONFIGURACIÓN DE PÁGINA Y CARGA INTELIGENTE DE IMÁGENES (PNG / JPEG)
 # ==============================================================================
 st.set_page_config(
-    page_title="DCCAI | UNACEM - DCCA Atocongo",
+    page_title="DCCAI | UNACEM - División de Control de Calidad Atocongo",
     page_icon="🏭",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-def obtener_logo_b64(ruta_logo="unacem_logo.png"):
-    if os.path.exists(ruta_logo):
-        with open(ruta_logo, "rb") as f:
-            return base64.b64encode(f.read()).decode("utf-8")
+def obtener_data_uri_imagen(nombre_base):
+    """Detecta automáticamente .png, .jpg o .jpeg y lee la firma binaria real."""
+    for ext in ["", ".png", ".jpg", ".jpeg", ".PNG", ".JPG", ".JPEG"]:
+        ruta = f"{nombre_base}{ext}"
+        if os.path.exists(ruta) and os.path.isfile(ruta):
+            with open(ruta, "rb") as f:
+                raw = f.read()
+            mime = "image/jpeg" if raw[:2] == b"\xff\xd8" else "image/png"
+            b64 = base64.b64encode(raw).decode("utf-8")
+            return f"data:{mime};base64,{b64}"
     return None
 
-LOGO_B64 = obtener_logo_b64()
+LOGO_URI = obtener_data_uri_imagen("unacem_logo")
+BOLSAS_URI = {
+    "TI": obtener_data_uri_imagen("sol"),
+    "GU": obtener_data_uri_imagen("apu"),
+    "HS": obtener_data_uri_imagen("andino")
+}
 
 st.markdown("""
 <style>
     .block-container {
-        padding-top: 0.8rem !important;
+        padding-top: 2.5rem !important;
         padding-bottom: 1.5rem !important;
-        max-width: 98% !important;
+        max-width: 97% !important;
     }
     .splash-box {
-        background: radial-gradient(circle at center, #1f242e 0%, #0d0f14 100%);
-        border: 1px solid #303642;
+        background: radial-gradient(circle at center, #1c222d 0%, #0b0d12 100%);
+        border: 1px solid #2e3543;
         border-top: 4px solid #E30613;
-        border-radius: 16px;
-        padding: 45px 25px;
+        border-radius: 18px;
+        padding: 55px 35px;
         text-align: center;
-        margin: 30px auto;
-        max-width: 760px;
-        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.65);
+        margin: 45px auto;
+        max-width: 820px;
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.75);
     }
     .splash-dcca {
-        font-size: 1.05rem;
+        font-size: 1.04rem;
         font-weight: 800;
         color: #E30613;
-        letter-spacing: 2px;
+        letter-spacing: 2.4px;
         text-transform: uppercase;
-        margin-top: 14px;
-        margin-bottom: 6px;
-    }
-    .splash-title {
-        font-size: 2.1rem;
-        font-weight: 800;
-        color: #ffffff;
+        margin-top: 18px;
         margin-bottom: 8px;
     }
+    .splash-title {
+        font-size: 3.3rem;
+        font-weight: 900;
+        color: #ffffff;
+        letter-spacing: 1.2px;
+        margin-bottom: 6px;
+    }
     .header-banner {
-        background: linear-gradient(90deg, #12151c 0%, #1a1f29 100%);
+        background: linear-gradient(90deg, #11141b 0%, #191e28 100%);
         border: 1px solid #2d3340;
         border-left: 5px solid #E30613;
-        border-radius: 10px;
-        padding: 12px 18px;
-        margin-bottom: 14px;
+        border-radius: 12px;
+        padding: 16px 24px;
+        margin-bottom: 18px;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        flex-wrap: nowrap;
-        gap: 15px;
+        flex-wrap: wrap;
+        gap: 16px;
+        box-shadow: 0 6px 22px rgba(0, 0, 0, 0.35);
     }
     .brand-tag {
         font-size: 0.78rem;
         font-weight: 800;
         color: #E30613;
-        letter-spacing: 1.4px;
+        letter-spacing: 1.8px;
         text-transform: uppercase;
+        margin-bottom: 3px;
     }
     .main-title {
-        font-size: 1.45rem;
-        font-weight: 800;
+        font-size: 1.72rem;
+        font-weight: 900;
         color: #ffffff;
         margin: 0;
+        letter-spacing: 0.5px;
         line-height: 1.15;
     }
-    .author-badge {
-        background: rgba(227, 6, 19, 0.1);
-        border: 1px solid rgba(227, 6, 19, 0.35);
-        border-radius: 8px;
-        padding: 6px 12px;
-        text-align: right;
-        min-width: 280px;
-        flex-shrink: 0;
+    .main-subtitle {
+        font-size: 0.84rem;
+        color: #9ca3af;
+        margin-top: 3px;
     }
-    .section-header {
-        font-size: 1.05rem;
+    .author-badge {
+        background: rgba(227, 6, 19, 0.10);
+        border: 1px solid rgba(227, 6, 19, 0.40);
+        border-radius: 10px;
+        padding: 10px 18px;
+        text-align: right;
         font-weight: 700;
-        color: #f3f4f6;
-        border-bottom: 1px solid #303642;
-        padding-bottom: 6px;
-        margin-top: 16px;
-        margin-bottom: 12px;
+        color: #ffffff;
+        font-size: 0.92rem;
+    }
+    .bag-showcase {
+        background: #141821;
+        border: 1px solid #2d3340;
+        border-radius: 10px;
+        padding: 8px 14px;
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 14px;
+        height: 100%;
+    }
+    .predictor-main-title {
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: #ffffff;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-top: 10px;
+        margin-bottom: 4px;
+    }
+    .section-header {
+        font-size: 0.98rem;
+        font-weight: 700;
+        color: #e5e7eb;
+        border-bottom: 1px solid #2d3340;
+        padding-bottom: 6px;
+        margin-top: 14px;
+        margin-bottom: 12px;
     }
     div[data-testid="stNumberInput"] label {
         font-size: 0.80rem !important;
@@ -194,25 +231,25 @@ st.markdown("""
         background: linear-gradient(90deg, #E30613 0%, #B8000C 100%);
         color: #ffffff;
         border: none;
-        border-radius: 6px;
-        font-weight: 600;
-        font-size: 1.02rem;
-        padding: 10px 18px;
-        box-shadow: 0 4px 14px rgba(227, 6, 19, 0.25);
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 1.04rem;
+        padding: 12px 20px;
+        box-shadow: 0 4px 15px rgba(227, 6, 19, 0.30);
     }
     .result-card {
         background: radial-gradient(circle at top, #1f242e 0%, #11141a 100%);
         border: 1px solid #303642;
         border-radius: 12px;
-        padding: 20px;
+        padding: 24px;
         text-align: center;
         margin-top: 8px;
     }
     .result-value {
-        font-size: 3.2rem;
+        font-size: 3.4rem;
         font-weight: 800;
         color: #f9fafb;
-        line-height: 1;
+        line-height: 1.05;
     }
     .result-unit {
         font-size: 1.25rem;
@@ -221,21 +258,32 @@ st.markdown("""
     }
     .conformal-badge {
         display: inline-block;
-        margin-top: 8px;
-        padding: 4px 10px;
+        margin-top: 10px;
+        padding: 5px 12px;
         border-radius: 20px;
         background: rgba(227, 6, 19, 0.14);
         border: 1px solid rgba(227, 6, 19, 0.4);
         color: #f3f4f6;
-        font-size: 0.81rem;
+        font-size: 0.82rem;
         font-weight: 600;
     }
+    .real-badge {
+        display: inline-block;
+        margin-top: 8px;
+        padding: 4px 12px;
+        border-radius: 6px;
+        background: rgba(16, 185, 129, 0.15);
+        border: 1px solid rgba(16, 185, 129, 0.45);
+        color: #ecfdf5;
+        font-size: 0.88rem;
+        font-weight: 700;
+    }
     .kpi-mini {
-        background: #161922;
+        background: #151922;
         border-left: 3px solid #E30613;
         border-radius: 6px;
-        padding: 8px 12px;
-        margin-bottom: 6px;
+        padding: 9px 14px;
+        margin-bottom: 8px;
     }
     .kpi-mini-title {
         font-size: 0.72rem;
@@ -243,74 +291,63 @@ st.markdown("""
         text-transform: uppercase;
     }
     .kpi-mini-val {
-        font-size: 1.15rem;
+        font-size: 1.18rem;
         font-weight: 700;
         color: #ffffff;
     }
     .footer-disclaimer {
         text-align: center;
         color: #9ca3af;
-        font-size: 0.78rem;
-        margin-top: 1.8rem;
-        padding-top: 0.8rem;
+        font-size: 0.79rem;
+        margin-top: 2.2rem;
+        padding-top: 1rem;
         border-top: 1px solid #1f242e;
+        line-height: 1.6;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# PANTALLA DE PRESENTACIÓN INICIAL (SPLASH SCREEN)
+# PANTALLA DE PRESENTACIÓN INICIAL (PAUSADA Y EJECUTIVA)
 if "splash_mostrado" not in st.session_state:
     placeholder = st.empty()
-    logo_html = f'<img src="data:image/png;base64,{LOGO_B64}" style="max-height:75px; margin-bottom:8px;">' if LOGO_B64 else '<div style="font-size:2.5rem;">🏭</div>'
+    logo_html = f'<img src="{LOGO_URI}" style="max-height:82px; margin-bottom:10px;">' if LOGO_URI else ''
+    bolsas_splash = "".join([
+        f'<img src="{uri}" style="height:75px; margin:0 12px; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,0.5);">'
+        for uri in BOLSAS_URI.values() if uri
+    ])
+    div_bolsas_splash = f'<div style="margin: 18px 0;">{bolsas_splash}</div>' if bolsas_splash else ''
+
     with placeholder.container():
         st.markdown(f"""
         <div class="splash-box">
             {logo_html}
-            <div class="splash-dcca">UNACEM &bull; DIVISIÓN DE CONTROL DE CALIDAD ATOCONGO - DCCA</div>
-            <div class="splash-title">DCCAI | QuAI &mdash; M.A.R.C.O. v2.0</div>
-            <div style="color:#9ca3af; font-size:0.92rem; margin-bottom:14px;">
-                Sistema Inteligente de Predicción de Resistencia a la Compresión y Auditoría Quimiométrica
+            <div class="splash-dcca">DIVISIÓN DE CONTROL DE CALIDAD ATOCONGO - DCCA</div>
+            <div class="splash-title">DCC<span style="color:#E30613;">AI</span></div>
+            <div style="color:#d1d5db; font-size:1.1rem; font-weight:500; margin-bottom:14px;">
+                Sistema Inteligente de Predicción de Resistencia a la Compresión
             </div>
-            <div style="border-top:1px solid #2d3340; padding-top:14px; font-size:0.98rem; color:#e5e7eb;">
-                <b>Elaborado por:</b> Ing. Marco Antonio Uriel Martínez Sánchez<br>
-                <span style="font-size:0.82rem; color:#9ca3af;">(Martínez Sánchez, Marco Antonio Uriel)</span>
+            {div_bolsas_splash}
+            <div style="border-top:1px solid #2d3340; padding-top:16px; font-size:1.0rem; color:#f3f4f6;">
+                <b>Elaborado por:</b> Ing. CIP Marco Antonio Uriel Martínez Sánchez
             </div>
         </div>
         """, unsafe_allow_html=True)
-        barra = st.progress(0, text="Iniciando motores quimiométricos...")
-        for pct in range(0, 101, 33):
-            time.sleep(0.35)
-            barra.progress(pct, text="Cargando modelos predictivos y normalizadores...")
+        barra = st.progress(0, text="Inicializando arquitectura DCCAI...")
+        for pct in range(0, 101, 20):
+            time.sleep(0.80)
+            barra.progress(pct, text="Cargando modelos de Machine Learning (Sol • Apu • Andino)...")
     placeholder.empty()
     st.session_state["splash_mostrado"] = True
 
 
 # ==============================================================================
-# 2. CATÁLOGO QUIMIOMÉTRICO Y DICCIONARIO DE MAPEO DE COLUMNAS (BD A MODELO)
+# 2. CATÁLOGO DE CEMENTOS Y DICCIONARIO EXACTO DE BASE DE DATOS DE LABORATORIO
 # ==============================================================================
 CONFIG_CEMENTOS = {
-    "Cemento Tipo GU (16 Variables)": {
-        "codigo": "GU",
-        "features": [
-            '%Caliza', '%Yeso', 'M325', 'Blaine', 'SO3', 'Álcali_Eq',
-            'Alita', 'Belita', 'Cal_Libre', 'C3A_Cúbico', 'C3A_Ortorómbico',
-            'Gypsum', 'Hemidrato', 'Anhidrita', 'Agua_Cemento', 'Fluidez'
-        ],
-        "defaults": {
-            '%Caliza': 21.50, '%Yeso': 4.74, '%Puzolana': 0.0, '%Escoria': 0.0,
-            'M325': 2.95, 'Blaine': 3760.0, 'SO3': 2.86, 'Álcali_Eq': 0.77,
-            'Alita': 46.20, 'Belita': 7.00, 'Cal_Libre': 0.24, 'C3A_Cúbico': 6.24,
-            'C3A_Ortorómbico': 0.00, 'Gypsum': 2.92, 'Hemidrato': 0.78,
-            'Anhidrita': 0.05, 'Agua_Cemento': 49.00, 'Fluidez': 110.00
-        },
-        "rangos_3sigma": {
-            '%Caliza': (15.0, 26.0), 'Blaine': (3300.0, 4400.0),
-            'SO3': (2.1, 3.5), 'Alita': (38.0, 54.0), 'Agua_Cemento': (46.0, 53.0)
-        },
-        "incertidumbre_base": {"1d": 6.5, "3d": 9.0, "7d": 11.0, "28d": 14.0}
-    },
-    "Cemento Tipo I (15 Variables)": {
+    "TI (Portland Tipo I) - Sol": {
         "codigo": "TI",
+        "marca": "Cemento Sol",
+        "norma": "ASTM C150 / NTP 334.009",
         "features": [
             '%Caliza', '%Yeso', 'M325', 'Blaine', 'SO3', 'Álcali_Eq',
             'Alita', 'Belita', 'Cal_Libre', 'C3A_Cúbico', 'C3A_Ortorómbico',
@@ -323,14 +360,30 @@ CONFIG_CEMENTOS = {
             'C3A_Ortorómbico': 1.10, 'Gypsum': 2.50, 'Hemidrato': 1.10,
             'Anhidrita': 0.10, 'Agua_Cemento': 48.50, 'Fluidez': 112.00
         },
-        "rangos_3sigma": {
-            '%Caliza': (1.0, 7.5), 'Blaine': (3200.0, 4150.0),
-            'SO3': (2.0, 3.4), 'Alita': (48.0, 64.0)
-        },
         "incertidumbre_base": {"1d": 7.0, "3d": 10.5, "7d": 12.0, "28d": 15.0}
     },
-    "Cemento Tipo HS (18 Variables)": {
+    "GU (General Use) - Apu": {
+        "codigo": "GU",
+        "marca": "Cemento Apu",
+        "norma": "ASTM C1157 / NTP 334.082",
+        "features": [
+            '%Caliza', '%Yeso', 'M325', 'Blaine', 'SO3', 'Álcali_Eq',
+            'Alita', 'Belita', 'Cal_Libre', 'C3A_Cúbico', 'C3A_Ortorómbico',
+            'Gypsum', 'Hemidrato', 'Anhidrita', 'Agua_Cemento', 'Fluidez'
+        ],
+        "defaults": {
+            '%Caliza': 21.50, '%Yeso': 4.74, '%Puzolana': 0.0, '%Escoria': 0.0,
+            'M325': 2.95, 'Blaine': 3760.0, 'SO3': 2.86, 'Álcali_Eq': 0.77,
+            'Alita': 46.20, 'Belita': 7.00, 'Cal_Libre': 0.24, 'C3A_Cúbico': 6.24,
+            'C3A_Ortorómbico': 0.00, 'Gypsum': 2.92, 'Hemidrato': 0.78,
+            'Anhidrita': 0.05, 'Agua_Cemento': 49.00, 'Fluidez': 110.00
+        },
+        "incertidumbre_base": {"1d": 6.5, "3d": 9.0, "7d": 11.0, "28d": 14.0}
+    },
+    "HS (High Sulfate Resistance) - Andino": {
         "codigo": "HS",
+        "marca": "Cemento Andino Ultra HS",
+        "norma": "ASTM C1157 / NTP 334.082",
         "features": [
             '%Caliza', '%Yeso', '%Puzolana', '%Escoria', 'M325', 'Blaine',
             'SO3', 'Álcali_Eq', 'Alita', 'Belita', 'Cal_Libre', 'C3A_Cúbico',
@@ -344,40 +397,39 @@ CONFIG_CEMENTOS = {
             'C3A_Ortorómbico': 0.00, 'Gypsum': 2.30, 'Hemidrato': 2.10,
             'Anhidrita': 0.20, 'Agua_Cemento': 49.00, 'Fluidez': 110.00
         },
-        "rangos_3sigma": {
-            '%Caliza': (8.0, 12.0), '%Puzolana': (11.0, 17.5), '%Escoria': (15.0, 21.0),
-            'Blaine': (4600.0, 5350.0), 'SO3': (2.1, 2.9), 'Alita': (40.0, 51.0),
-            'Agua_Cemento': (47.5, 51.0)
-        },
         "incertidumbre_base": {"1d": 6.0, "3d": 9.8, "7d": 11.5, "28d": 14.1}
     }
 }
 
-# Diccionario universal de mapeo para normalizar nombres en bruto de bases de datos
-MAPEO_COLUMNAS_CRUDAS = {
-    'caliza': '%Caliza', 'porcentajecaliza': '%Caliza', '%caliza': '%Caliza',
-    'yeso': '%Yeso', 'porcentajeyeso': '%Yeso', '%yeso': '%Yeso',
-    'puzolana': '%Puzolana', '%puzolana': '%Puzolana',
-    'escoria': '%Escoria', '%escoria': '%Escoria',
-    'm325': 'M325', '%m325': 'M325',
-    'blaine': 'Blaine',
-    'so3': 'SO3', 'sulfurtoxide': 'SO3',
-    'alcalieq': 'Álcali_Eq', 'alcaliequivalente': 'Álcali_Eq', 'alkali': 'Álcali_Eq', 'alcali_eq': 'Álcali_Eq',
+# Mapeo exacto entre los encabezados de exportación de la BD y las variables del modelo
+MAPEO_BD_EXACTO = {
+    'cal': '%Caliza', 'caliza': '%Caliza', 'porcentajecaliza': '%Caliza',
+    'yes': '%Yeso', 'yeso': '%Yeso', 'porcentajeyeso': '%Yeso',
+    'puzare': '%Puzolana', 'puz': '%Puzolana', 'puzolana': '%Puzolana',
+    'slag': '%Escoria', 'escoria': '%Escoria',
+    'm325prvs': 'M325', 'm325': 'M325',
+    'blaineaut': 'Blaine', 'blaine': 'Blaine',
+    'so3rxpa': 'SO3', 'so3': 'SO3',
+    'alctotrxpa': 'Álcali_Eq', 'alctot': 'Álcali_Eq', 'alcalieq': 'Álcali_Eq',
     'alita': 'Alita', 'c3s': 'Alita',
     'belita': 'Belita', 'c2s': 'Belita',
-    'callibre': 'Cal_Libre', 'calibre': 'Cal_Libre', 'cao_libre': 'Cal_Libre',
-    'c3acubico': 'C3A_Cúbico', 'c3acub': 'C3A_Cúbico', 'c3a_cubico': 'C3A_Cúbico',
-    'c3aortorrombico': 'C3A_Ortorómbico', 'c3aorto': 'C3A_Ortorómbico', 'c3a_ortorrombico': 'C3A_Ortorómbico',
+    'callibredrx': 'Cal_Libre', 'callibre': 'Cal_Libre', 'cao': 'Cal_Libre',
+    'c3acubic': 'C3A_Cúbico', 'c3acubico': 'C3A_Cúbico',
+    'c3aortho': 'C3A_Ortorómbico', 'c3aortorombico': 'C3A_Ortorómbico', 'c3aortorrombico': 'C3A_Ortorómbico',
     'gypsum': 'Gypsum',
     'hemidrato': 'Hemidrato', 'hemihidrato': 'Hemidrato',
-    'anhidrita': 'Anhidrita',
-    'aguacemento': 'Agua_Cemento', 'a/c': 'Agua_Cemento', 'agua_cemento': 'Agua_Cemento',
-    'fluidez': 'Fluidez'
+    'anhydrita': 'Anhidrita', 'anhidrita': 'Anhidrita',
+    'agcem': 'Agua_Cemento', 'aguacemento': 'Agua_Cemento',
+    'fluid': 'Fluidez', 'fluidez': 'Fluidez',
+    '24hrs': '1_d', '24h': '1_d', '1d': '1_d', '1dia': '1_d',
+    '3dias': '3_d', '3d': '3_d',
+    '7d': '7_d', '7dias': '7_d',
+    '28dias': '28_d', '28d': '28_d'
 }
 
 
 # ==============================================================================
-# 3. CARGA ROBUSTA DE MODELOS (.PKL)
+# 3. CARGA DE MODELOS (.PKL)
 # ==============================================================================
 @st.cache_resource
 def cargar_repositorio_modelos():
@@ -405,7 +457,6 @@ def cargar_repositorio_modelos():
         }
     }
     repo = {"GU": {}, "TI": {}, "HS": {}}
-    errores_carga = {}
     for cem, edades in candidatos.items():
         for edad, rutas in edades.items():
             modelo_cargado, ruta_activa = None, None
@@ -416,16 +467,16 @@ def cargar_repositorio_modelos():
                         modelo_cargado = reparar_compatibilidad_sklearn(raw_mod)
                         ruta_activa = r
                         break
-                    except Exception as e:
-                        errores_carga[r] = str(e)
+                    except Exception:
+                        pass
             repo[cem][edad] = (modelo_cargado, ruta_activa)
-    return repo, errores_carga
+    return repo
 
-REPO_MODELOS, ERRORES_PKL = cargar_repositorio_modelos()
+REPO_MODELOS = cargar_repositorio_modelos()
 
 
 # ==============================================================================
-# 4. MOTOR DE INFERENCIA Y ALINEACIÓN DE DATOS CRUDOS
+# 4. MOTOR ETL: LIMPIEZA EXACTA DEL EXCEL EXPORTADO DE BASE DE DATOS
 # ==============================================================================
 def normalizar_nombre(texto):
     return re.sub(
@@ -433,49 +484,83 @@ def normalizar_nombre(texto):
         unicodedata.normalize('NFKD', str(texto)).encode('ASCII', 'ignore').decode('utf-8').lower()
     )
 
-def limpiar_y_mapear_dataframe_crudo(df_input, features_esperadas):
-    """Limpia filas de promedios/totales y mapea nombres crudos de BD al modelo."""
-    df = df_input.copy()
-    
-    # 1. Eliminar filas de resumen o promedios al fondo de la base de datos
-    if len(df) > 0:
-        col_primera = str(df.columns[0])
-        mask_basura = df[col_primera].astype(str).str.lower().str.contains('promedio|average|media|total|sum', na=False)
-        df = df[~mask_basura]
+def limpiar_dataframe_lotes(df_raw, features_esperadas, defaults_cem, edad_seleccionada=None):
+    """
+    1. Trunca inmediatamente desde la fila 'Promedio / Desviación Estandar' hacia abajo
+       (eliminando la fila de texto y las 2 filas numéricas de promedio y desviación).
+    2. Corta todas las columnas a la izquierda de 'Fecha' (N°, ALSE/FALSE y blancos).
+    3. Traduce todos los nombres crudos (%Cal, % PuzAre, % Slag, 24 hrs...) al estándar del modelo.
+    4. Conserva solo la columna de resistencia de la edad seleccionada (1_d, 3_d, 7_d o 28_d).
+    """
+    df = df_raw.copy()
 
-    # 2. Mapear nombres de columnas crudas
-    nuevos_nombres = {}
+    # PASO 1: Detectar la fila donde aparece "Promedio / Desviación Estandar" y cortar todo desde ahí hacia abajo
+    idx_corte = None
+    for i in range(len(df)):
+        fila_texto = " ".join(df.iloc[i].astype(str).tolist()).lower()
+        if "promedio" in fila_texto or "desviacion" in fila_texto or "desviación" in fila_texto or "estandar" in fila_texto:
+            idx_corte = i
+            break
+    if idx_corte is not None:
+        df = df.iloc[:idx_corte].copy()
+
+    # PASO 2: Localizar la columna 'Fecha' y eliminar todas las columnas previas (N°, ALSE/FALSE, blancos)
+    idx_col_fecha = None
+    for j, col_name in enumerate(df.columns):
+        if normalizar_nombre(col_name) in ['fecha', 'date', 'fechamolienda']:
+            idx_col_fecha = j
+            break
+    if idx_col_fecha is not None:
+        df = df.iloc[:, idx_col_fecha:].copy()
+
+    # PASO 3: Renombrar encabezados crudos al estándar exacto del modelo
+    renombres = {}
     for col in df.columns:
         c_norm = normalizar_nombre(col)
-        if c_norm in MAPEO_COLUMNAS_CRUDAS:
-            nuevos_nombres[col] = MAPEO_COLUMNAS_CRUDAS[c_norm]
-        else:
-            # Búsqueda parcial por si hay sufijos
-            encontrado = False
-            for clave_map, col_real in MAPEO_COLUMNAS_CRUDAS.items():
-                if clave_map in c_norm:
-                    nuevos_nombres[col] = col_real
-                    encontrado = True
-                    break
-            if not encontrado:
-                nuevos_nombres[col] = col
-                
-    df = df.rename(columns=nuevos_nombres)
+        if c_norm in MAPEO_BD_EXACTO:
+            renombres[col] = MAPEO_BD_EXACTO[c_norm]
+        elif 'fecha' in c_norm:
+            renombres[col] = 'Fecha'
+    df = df.rename(columns=renombres)
 
-    # 3. Alinear asegurando que existan todas las features esperadas
-    df_alineado = pd.DataFrame(index=df.index)
+    # PASO 4: Si existe la columna 'Fecha', filtrar cualquier fila al final que no tenga Fecha válida
+    if 'Fecha' in df.columns:
+        fechas_parsed = pd.to_datetime(df['Fecha'], errors='coerce')
+        df = df[fechas_parsed.notna()].copy()
+        df['Fecha'] = pd.to_datetime(df['Fecha']).dt.strftime('%Y-%m-%d')
+    else:
+        # Si es un Excel ya recortado sin columna Fecha, eliminar filas vacías
+        cols_num = [c for c in features_esperadas if c in df.columns]
+        if cols_num:
+            df = df.dropna(subset=cols_num, how='all').copy()
+
+    # PASO 5: Construir DataFrame de entrada al modelo (rellenando vacíos aislados de receta con ffill/default)
+    df_modelo = pd.DataFrame(index=df.index)
+    cols_receta_fija = ['%Caliza', '%Yeso', '%Puzolana', '%Escoria']
     for col in features_esperadas:
         if col in df.columns:
-            df_alineado[col] = pd.to_numeric(df[col], errors='coerce')
+            serie_num = pd.to_numeric(df[col], errors='coerce')
+            if col in cols_receta_fija:
+                serie_num = serie_num.ffill().fillna(defaults_cem.get(col, 0.0))
+            df_modelo[col] = serie_num
+            df[col] = serie_num
         else:
-            df_alineado[col] = 0.0 # Columnas faltantes por default
-            
-    # Mantener columnas auxiliares como Fecha o targets si existen
-    for col_aux in ['Fecha', 'fecha', '1_d', '3_d', '7_d', '28_d']:
-        if col_aux in df.columns:
-            df_alineado[col_aux] = df[col_aux]
-            
-    return df_alineado
+            df_modelo[col] = defaults_cem.get(col, 0.0)
+
+    # PASO 6: Construir vista limpia conservando solo 'Fecha', las variables predictoras y la edad elegida
+    columnas_vista = []
+    if 'Fecha' in df.columns:
+        columnas_vista.append('Fecha')
+    columnas_vista.extend([c for c in features_esperadas if c in df.columns])
+
+    if edad_seleccionada in ['1d', '3d', '7d', '28d']:
+        target_activo = f"{edad_seleccionada[:-1]}_d"
+        if target_activo in df.columns:
+            df[target_activo] = pd.to_numeric(df[target_activo], errors='coerce')
+            columnas_vista.append(target_activo)
+
+    df_vista_final = df[columnas_vista].reset_index(drop=True)
+    return df_vista_final, df_modelo.reset_index(drop=True)
 
 def ejecutar_predict_seguro(modelo, df_aln):
     reparar_compatibilidad_sklearn(modelo)
@@ -484,104 +569,162 @@ def ejecutar_predict_seguro(modelo, df_aln):
     except AttributeError:
         X_val = df_aln.select_dtypes(include=[np.number]).fillna(-9999.0).values
         if hasattr(modelo, "steps"):
-            for nombre_paso, paso in modelo.steps[:-1]:
+            for _, paso in modelo.steps[:-1]:
                 if not isinstance(paso, SimpleImputer):
                     X_val = paso.transform(X_val)
             return np.asarray(modelo.steps[-1][1].predict(X_val), dtype=float)
         raise
 
-def predecir_con_modelo(modelo, df_input, features_esperadas, sigma_fallback=10.0):
-    df_aln = limpiar_y_mapear_dataframe_crudo(df_input, features_esperadas)
+def predecir_con_modelo(modelo, df_features, features_esperadas, sigma_fallback=10.0):
+    df_aln = df_features[features_esperadas].copy()
     if hasattr(modelo, "predict_interval"):
         try:
             reparar_compatibilidad_sklearn(modelo)
-            y_hat, p10, p90 = modelo.predict_interval(df_aln[features_esperadas])
+            y_hat, p10, p90 = modelo.predict_interval(df_aln)
             return np.asarray(y_hat, dtype=float), np.asarray(p10, dtype=float), np.asarray(p90, dtype=float)
         except AttributeError:
-            raw_pred = ejecutar_predict_seguro(modelo.model_, df_aln[features_esperadas])
+            raw_pred = ejecutar_predict_seguro(modelo.model_, df_aln)
             y_hat = modelo.mu_y_ + modelo.factor_escala_ * (raw_pred - modelo.mu_pred_)
             q = getattr(modelo, "q_conformal_", 1.2816 * sigma_fallback)
             return y_hat, y_hat - q, y_hat + q
     else:
-        y_hat = ejecutar_predict_seguro(modelo, df_aln[features_esperadas])
+        y_hat = ejecutar_predict_seguro(modelo, df_aln)
         q_80 = 1.2816 * sigma_fallback
         return y_hat, y_hat - q_80, y_hat + q_80
 
-def calcular_contribucion_local_kg(modelo, df_fila, defaults_dict, features_esperadas):
-    df_base = pd.DataFrame([{k: defaults_dict[k] for k in features_esperadas}])
-    pred_base, _, _ = predecir_con_modelo(modelo, df_base, features_esperadas)
-    val_base = float(pred_base[0])
+def obtener_importancia_variables(modelo, df_fila, features_esperadas):
+    est = modelo.model_ if hasattr(modelo, "model_") else modelo
+    if hasattr(est, "steps"):
+        est = est.steps[-1][1]
 
-    impactos = {}
+    if hasattr(est, "feature_importances_"):
+        imp = np.asarray(est.feature_importances_, dtype=float)
+        if len(imp) == len(features_esperadas) and imp.max() > 0:
+            imp_pct = (imp / imp.sum()) * 100.0
+            return pd.DataFrame({'Variable': features_esperadas, 'Importancia (%)': imp_pct})
+
+    pred_0, _, _ = predecir_con_modelo(modelo, df_fila, features_esperadas)
+    sens = []
     for col in features_esperadas:
-        df_temp = df_base.copy()
-        df_temp[col] = df_fila[col].values[0]
-        pred_mod, _, _ = predecir_con_modelo(modelo, df_temp, features_esperadas)
-        impactos[col] = float(pred_mod[0]) - val_base
-    return val_base, impactos
+        df_p = df_fila.copy()
+        delta = max(abs(float(df_p[col].values[0])) * 0.05, 0.2)
+        df_p[col] = df_p[col] + delta
+        pred_1, _, _ = predecir_con_modelo(modelo, df_p, features_esperadas)
+        sens.append(abs(float(pred_1[0] - pred_0[0])) + 0.05)
+    sens = np.asarray(sens)
+    imp_pct = (sens / sens.sum()) * 100.0
+    return pd.DataFrame({'Variable': features_esperadas, 'Importancia (%)': imp_pct})
 
 
 # ==============================================================================
-# 5. BANNER INSTITUCIONAL PERMANENTE
+# 5. ENCABEZADO INSTITUCIONAL Y SELECTORES CON IMAGEN DE BOLSA DE CEMENTO
 # ==============================================================================
-logo_header_html = f'<img src="data:image/png;base64,{LOGO_B64}" style="height:48px; margin-right:14px;">' if LOGO_B64 else ''
+logo_header_html = f'<img src="{LOGO_URI}" style="height:50px; margin-right:18px;">' if LOGO_URI else ''
 
 st.markdown(f"""
 <div class="header-banner">
     <div style="display:flex; align-items:center;">
         {logo_header_html}
         <div>
-            <div class="brand-tag">UNACEM &bull; DIVISIÓN DE CONTROL DE CALIDAD ATOCONGO - DCCA</div>
-            <div class="main-title">DCCAI | QuAI &mdash; M.A.R.C.O. v2.0</div>
+            <div class="brand-tag">DIVISIÓN DE CONTROL DE CALIDAD ATOCONGO - DCCA</div>
+            <div class="main-title">DCC<span style="color:#E30613;">AI</span> &mdash; Inteligencia Artificial Aplicada al Cemento</div>
+            <div class="main-subtitle">Sistema Inteligente de Predicción de Resistencia a la Compresión</div>
         </div>
     </div>
     <div class="author-badge">
-        <div style="font-size:0.68rem; color:#9ca3af; text-transform:uppercase; letter-spacing:1px;">Elaborado por</div>
-        <div style="font-weight:700; color:#ffffff; font-size:0.86rem;">Ing. Marco Antonio Uriel Martínez Sánchez</div>
-        <div style="font-size:0.72rem; color:#d1d5db;">Martínez Sánchez, Marco Antonio Uriel</div>
+        Ing. CIP Marco Antonio Uriel Martínez Sánchez
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-col_sel1, col_sel2, col_sel3 = st.columns([1.4, 1.4, 1.2])
+col_sel1, col_sel2, col_sel3, col_bag = st.columns([1.35, 1.25, 1.0, 1.1])
 with col_sel1:
-    tipo_cemento_label = st.selectbox("Familia de Cemento", list(CONFIG_CEMENTOS.keys()), index=0)
+    tipo_cemento_label = st.selectbox("Cemento", list(CONFIG_CEMENTOS.keys()), index=1)
 with col_sel2:
-    horizonte = st.selectbox(
-        "Horizonte de Predicción",
+    edad_label = st.selectbox(
+        "Edad de Predicción",
         [
-            "1 Día (Resistencia Temprana)",
-            "3 Días (Control Operativo)",
-            "7 Días (Desempeño Intermedio)",
-            "28 Días (Certificación Final)",
-            "Vista Multi-Edad Completa (1, 3, 7 y 28 Días)"
+            "1 día",
+            "3 días",
+            "7 días",
+            "28 días",
+            "Vista multi-edad completa (1, 3, 7 y 28 días)"
         ],
         index=3
     )
 with col_sel3:
     cfg = CONFIG_CEMENTOS[tipo_cemento_label]
     cod_cem = cfg["codigo"]
-    usar_cascada_28d = st.toggle("Activar Modo Cascada 28d", value=False)
+    st.write("")
+    usar_cascada_28d = st.toggle("Modo Cascada 28d", value=False)
+
+with col_bag:
+    bag_uri = BOLSAS_URI.get(cod_cem)
+    if bag_uri:
+        st.markdown(f"""
+        <div class="bag-showcase">
+            <img src="{bag_uri}" style="height:58px; border-radius:4px;">
+            <div>
+                <div style="font-size:0.72rem; color:#E30613; font-weight:800; text-transform:uppercase;">{cfg["norma"]}</div>
+                <div style="font-size:0.95rem; color:#ffffff; font-weight:800;">{cfg["marca"]}</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown(f"""
+        <div class="bag-showcase">
+            <div>
+                <div style="font-size:0.72rem; color:#E30613; font-weight:800; text-transform:uppercase;">{cfg["norma"]}</div>
+                <div style="font-size:0.95rem; color:#ffffff; font-weight:800;">{cfg["marca"]}</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 
 # ==============================================================================
-# 6. PESTAÑAS DE OPERACIÓN INDUSTRIAL
+# 6. PESTAÑAS EJECUTIVAS DE MACHINE LEARNING
 # ==============================================================================
 tab_sim, tab_batch, tab_spc = st.tabs([
-    "🎛️ Simulador Quimiométrico & Explicabilidad SHAP",
-    "📂 Carga Masiva Excel & Evaluación Ciega (MAE / MAPE / RMSE)",
-    "📈 Diagnóstico de Residuales & Control Estadístico (ASTM C109)"
+    "🎛️ Inferencia & Variables Predictoras",
+    "📂 Carga por Lotes & Métricas",
+    "📈 Diagnóstico de Residuales & Control Estadístico"
 ])
 
 # ------------------------------------------------------------------------------
-# PESTAÑA 1: SIMULADOR AGRUPADO POR SECCIONES TÉCNICAS
+# PESTAÑA 1: INFERENCIA & VARIABLES PREDICTORAS
 # ------------------------------------------------------------------------------
 with tab_sim:
-    defaults = cfg["defaults"]
+    defaults = cfg["defaults"].copy()
     features_activas = cfg["features"]
+    valor_real_lote = None
 
-    # SECCIÓN 1: DIFRACCIÓN DE RAYOS X (XRD RIETVELD)
-    st.markdown('<div class="section-header">🔬 1. Difracción de Rayos X (XRD Rietveld)</div>', unsafe_allow_html=True)
+    if f"lotes_{cod_cem}" in st.session_state:
+        df_mem_vista, df_mem_mod = st.session_state[f"lotes_{cod_cem}"]
+        if len(df_mem_vista) > 0:
+            opciones_lote = ["Ingreso manual libre"] + [
+                f"Lote {i+1} | Fecha: {df_mem_vista['Fecha'].iloc[i]}" if 'Fecha' in df_mem_vista.columns else f"Lote #{i+1}"
+                for i in range(len(df_mem_vista))
+            ]
+            lote_elegido = st.selectbox("🔍 Cargar automáticamente variables y Valor Real desde un lote del Excel:", opciones_lote)
+            if lote_elegido != "Ingreso manual libre":
+                idx_lote = opciones_lote.index(lote_elegido) - 1
+                for f_col in features_activas:
+                    if f_col in df_mem_mod.columns and pd.notna(df_mem_mod[f_col].iloc[idx_lote]):
+                        defaults[f_col] = float(df_mem_mod[f_col].iloc[idx_lote])
+                mapa_ed_col = {"1 día": "1_d", "3 días": "3_d", "7 días": "7_d", "28 días": "28_d"}
+                col_real_buscada = mapa_ed_col.get(edad_label)
+                if col_real_buscada and col_real_buscada in df_mem_vista.columns:
+                    val_r = pd.to_numeric(df_mem_vista[col_real_buscada].iloc[idx_lote], errors='coerce')
+                    if pd.notna(val_r):
+                        valor_real_lote = float(val_r)
+
+    st.markdown(
+        f'<div class="predictor-main-title">Variables Predictoras &mdash; <span style="color:#E30613;">{cfg["marca"]}</span></div>',
+        unsafe_allow_html=True
+    )
+
+    # 1. DIFRACCIÓN DE RAYOS X (MÉTODO RIETVELD)
+    st.markdown('<div class="section-header">🔬 1. Difracción de Rayos X (Método Rietveld)</div>', unsafe_allow_html=True)
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         alita = st.number_input("Alita (C3S)", value=float(defaults['Alita']), step=0.50, format="%.2f")
@@ -596,30 +739,29 @@ with tab_sim:
         hemidrato = st.number_input("Hemidrato", value=float(defaults['Hemidrato']), step=0.10, format="%.2f")
         anhidrita = st.number_input("Anhidrita", value=float(defaults['Anhidrita']), step=0.05, format="%.2f")
 
-    # SECCIÓN 2: FLUORESCENCIA DE RAYOS X & DOSIFICACIÓN
-    st.markdown('<div class="section-header">⚗️ 2. Fluorescencia de Rayos X & Dosificación</div>', unsafe_allow_html=True)
+    # 2. DOSIFICACIÓN Y FLUORESCENCIA DE RAYOS X
+    st.markdown('<div class="section-header">⚗️ 2. Dosificación y Fluorescencia de Rayos X</div>', unsafe_allow_html=True)
     f1, f2, f3, f4 = st.columns(4)
     with f1:
         caliza = st.number_input("%Caliza", value=float(defaults['%Caliza']), step=0.10, format="%.2f")
-        so3 = st.number_input("SO3 (%)", value=float(defaults['SO3']), step=0.05, format="%.2f")
     with f2:
         yeso = st.number_input("%Yeso", value=float(defaults['%Yeso']), step=0.10, format="%.2f")
-        alcali_eq = st.number_input("Álcali_Eq", value=float(defaults['Álcali_Eq']), step=0.01, format="%.2f")
     with f3:
-        if cod_cem == "HS":
-            puzolana = st.number_input("%Puzolana", value=float(defaults['%Puzolana']), step=0.20, format="%.2f")
-        else:
-            puzolana = 0.0
-            st.write("")
+        so3 = st.number_input("SO3 (%)", value=float(defaults['SO3']), step=0.05, format="%.2f")
     with f4:
-        if cod_cem == "HS":
-            escoria = st.number_input("%Escoria", value=float(defaults['%Escoria']), step=0.20, format="%.2f")
-        else:
-            escoria = 0.0
-            st.write("")
+        alcali_eq = st.number_input("Álcali_Eq", value=float(defaults['Álcali_Eq']), step=0.01, format="%.2f")
 
-    # SECCIÓN 3: CONTROL DE PROCESOS Y ENSAYOS FÍSICOS (M325 & Blaine)
-    st.markdown('<div class="section-header">⚙️ 3. Ensayos de Control de Procesos y Físicos (M325 & Blaine)</div>', unsafe_allow_html=True)
+    if cod_cem == "HS":
+        h1, h2, _, _ = st.columns(4)
+        with h1:
+            puzolana = st.number_input("%Puzolana", value=float(defaults['%Puzolana']), step=0.20, format="%.2f")
+        with h2:
+            escoria = st.number_input("%Escoria", value=float(defaults['%Escoria']), step=0.20, format="%.2f")
+    else:
+        puzolana, escoria = 0.0, 0.0
+
+    # 3. CONTROL DE PROCESOS Y FÍSICOS
+    st.markdown('<div class="section-header">⚙️ 3. Control de Procesos y Físicos</div>', unsafe_allow_html=True)
     p1, p2, p3, p4 = st.columns(4)
     with p1:
         m325 = st.number_input("M325 (%)", value=float(defaults['M325']), step=0.05, format="%.2f")
@@ -630,6 +772,7 @@ with tab_sim:
             agua_cemento = st.number_input("Agua/Cemento (%)", value=float(defaults['Agua_Cemento']), step=0.20, format="%.2f")
         else:
             agua_cemento = 48.50
+            st.caption("ℹ️ *Relación A/C estándar en Tipo I: 48.5%*")
     with p4:
         fluidez = st.number_input("Fluidez (%)", value=float(defaults['Fluidez']), step=1.0, format="%.1f")
 
@@ -637,9 +780,9 @@ with tab_sim:
     if usar_cascada_28d:
         cc1, cc2 = st.columns(2)
         with cc1:
-            res_1d_real = st.number_input("Resistencia Real 1 Día (kg/cm²)", value=140.0, step=1.0)
+            res_1d_real = st.number_input("Resistencia Real 1 día (kg/cm²)", value=140.0, step=1.0)
         with cc2:
-            res_3d_real = st.number_input("Resistencia Real 3 Días (kg/cm²)", value=252.0, step=1.0)
+            res_3d_real = st.number_input("Resistencia Real 3 días (kg/cm²)", value=252.0, step=1.0)
 
     registro_actual = {
         '%Caliza': caliza, '%Yeso': yeso, '%Puzolana': puzolana, '%Escoria': escoria,
@@ -655,6 +798,8 @@ with tab_sim:
 
     df_input_single = pd.DataFrame([registro_actual])
 
+    # 4. INDICADORES FISICOQUÍMICOS DERIVADOS
+    st.markdown('<div class="section-header">📊 4. Indicadores Fisicoquímicos Derivados</div>', unsafe_allow_html=True)
     fcc_real = 100.0 - (caliza + yeso + puzolana + escoria)
     ratio_silicatos = alita / (belita + 0.1)
     sulf_solubles = gypsum + 1.5 * hemidrato
@@ -667,13 +812,13 @@ with tab_sim:
     k3.markdown(f'<div class="kpi-mini"><div class="kpi-mini-title">Sulfatos Solubles</div><div class="kpi-mini-val">{sulf_solubles:.2f}%</div></div>', unsafe_allow_html=True)
     k4.markdown(f'<div class="kpi-mini"><div class="kpi-mini-title">Balance SO3 / (C3A+Álc)</div><div class="kpi-mini-val">{balance_so3:.2f}</div></div>', unsafe_allow_html=True)
 
-    if st.button("Calcular Predicción e Intervalo Conformal", use_container_width=True):
-        mapa_edad = {"1 Día": "1d", "3 Días": "3d", "7 Días": "7d", "28 Días": "28d"}
-        edad_elegida = next((v for k, v in mapa_edad.items() if k in horizonte), "MULTI")
+    if st.button("Ejecutar Predicción", use_container_width=True):
+        mapa_edad = {"1 día": "1d", "3 días": "3d", "7 días": "7d", "28 días": "28d"}
+        edad_elegida = mapa_edad.get(edad_label, "MULTI")
 
         if edad_elegida != "MULTI":
             clave_m = "28d_CASCADA" if (edad_elegida == "28d" and usar_cascada_28d and REPO_MODELOS[cod_cem]["28d_CASCADA"][0] is not None) else edad_elegida
-            mod_obj, ruta_m = REPO_MODELOS[cod_cem][clave_m]
+            mod_obj, _ = REPO_MODELOS[cod_cem][clave_m]
             sigma_fb = cfg["incertidumbre_base"][edad_elegida]
 
             if mod_obj is not None:
@@ -681,45 +826,52 @@ with tab_sim:
                 y_p, p10, p90 = predecir_con_modelo(mod_obj, df_input_single, cols_req, sigma_fallback=sigma_fb)
                 val_c, val_p10, val_p90 = float(y_p[0]), float(p10[0]), float(p90[0])
 
-                col_res, col_shap = st.columns([1.0, 1.4])
+                html_real = ""
+                if valor_real_lote is not None:
+                    desvio = abs(valor_real_lote - val_c)
+                    html_real = f'<br><div class="real-badge">✔️ Valor Real: {valor_real_lote:.0f} kg/cm² (MAE: {desvio:.1f} kg/cm²)</div>'
+
+                bag_card_html = f'<img src="{bag_uri}" style="height:64px; margin-bottom:8px; border-radius:4px;"><br>' if bag_uri else ''
+
+                col_res, col_imp = st.columns([1.0, 1.4])
                 with col_res:
                     st.markdown(f"""
                     <div class="result-card">
-                        <div style="font-size:0.8rem; color:#9ca3af; text-transform:uppercase; margin-bottom:4px;">
-                            {tipo_cemento_label} &bull; {edad_elegida.upper()}
+                        {bag_card_html}
+                        <div style="font-size:0.82rem; color:#9ca3af; text-transform:uppercase; margin-bottom:6px;">
+                            {tipo_cemento_label} &bull; {edad_label}
                         </div>
                         <div class="result-value">{int(round(val_c))} <span class="result-unit">kg/cm²</span></div>
-                        <div style="font-size:0.9rem; color:#d1d5db; margin-top:4px;">Valor exacto: <b>{val_c:.2f} kg/cm²</b></div>
+                        {html_real}
+                        <br>
                         <div class="conformal-badge">
-                            🛡️ Banda Conformal 80%: <b>{val_p10:.1f}</b> a <b>{val_p90:.1f} kg/cm²</b>
+                            🛡️ Intervalo Conformal (P10 – P90): <b>{val_p10:.0f}</b> a <b>{val_p90:.0f} kg/cm²</b>
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
 
-                with col_shap:
-                    val_base, impactos = calcular_contribucion_local_kg(mod_obj, df_input_single, defaults, features_activas)
-                    df_imp = pd.DataFrame({'Variable': list(impactos.keys()), 'Impacto_kg': list(impactos.values())})
-                    df_imp['Abs'] = df_imp['Impacto_kg'].abs()
-                    df_imp = df_imp.sort_values('Abs', ascending=True).tail(8)
+                with col_imp:
+                    df_imp = obtener_importancia_variables(mod_obj, df_input_single, features_activas)
+                    df_imp = df_imp.sort_values('Importancia (%)', ascending=True).tail(8)
 
-                    colores = ['#10b981' if v >= 0 else '#E30613' for v in df_imp['Impacto_kg']]
-                    fig_wf = go.Figure(go.Bar(
-                        x=df_imp['Impacto_kg'], y=df_imp['Variable'],
-                        orientation='h', marker_color=colores,
-                        text=[f"{v:+.2f}" for v in df_imp['Impacto_kg']],
+                    fig_imp = go.Figure(go.Bar(
+                        x=df_imp['Importancia (%)'], y=df_imp['Variable'],
+                        orientation='h', marker_color='#E30613',
+                        text=[f"{v:.1f}%" for v in df_imp['Importancia (%)']],
                         textposition='auto'
                     ))
-                    fig_wf.update_layout(
-                        title=f"Aporte Quimiométrico Local (vs Base: {val_base:.1f} kg/cm²)",
-                        template="plotly_dark", height=280,
+                    fig_imp.update_layout(
+                        title="Importancia de Variables Predictoras (Feature Importance)",
+                        template="plotly_dark", height=290,
                         margin=dict(l=10, r=10, t=35, b=10),
-                        xaxis_title="kg/cm²"
+                        xaxis_title="Peso Relativo en el Modelo (%)"
                     )
-                    st.plotly_chart(fig_wf, use_container_width=True)
+                    st.plotly_chart(fig_imp, use_container_width=True)
             else:
-                st.error(f"No se pudo cargar el archivo `.pkl` para **{cod_cem} - {edad_elegida}**.")
+                st.error(f"No se encontró el modelo `.pkl` para **{cod_cem} - {edad_elegida}**.")
         else:
             edades_seq = ["1d", "3d", "7d", "28d"]
+            etiquetas_ed = ["1 día", "3 días", "7 días", "28 días"]
             dias_num = [1, 3, 7, 28]
             preds_c, preds_p10, preds_p90 = [], [], []
             cols_cards = st.columns(4)
@@ -733,17 +885,16 @@ with tab_sim:
                     preds_p10.append(float(l10[0]))
                     preds_p90.append(float(l90[0]))
                     cols_cards[idx].markdown(f"""
-                    <div class="result-card" style="padding:12px;">
-                        <div style="font-size:0.75rem; color:#9ca3af;">EDAD {ed.upper()}</div>
-                        <div class="result-value" style="font-size:2.2rem;">{int(round(yp[0]))} <span class="result-unit" style="font-size:0.9rem;">kg/cm²</span></div>
-                        <div style="font-size:0.72rem; color:#9ca3af; margin-top:4px;">[{l10[0]:.0f} – {l90[0]:.0f}]</div>
+                    <div class="result-card" style="padding:14px;">
+                        <div style="font-size:0.78rem; color:#9ca3af;">{etiquetas_ed[idx].upper()}</div>
+                        <div class="result-value" style="font-size:2.3rem;">{int(round(yp[0]))} <span class="result-unit" style="font-size:0.95rem;">kg/cm²</span></div>
+                        <div style="font-size:0.74rem; color:#9ca3af; margin-top:4px;">P10–P90: [{l10[0]:.0f} – {l90[0]:.0f}]</div>
                     </div>
                     """, unsafe_allow_html=True)
                 else:
                     preds_c.append(np.nan)
                     preds_p10.append(np.nan)
                     preds_p90.append(np.nan)
-                    cols_cards[idx].warning(f"Sin modelo {ed}")
 
             if not all(np.isnan(preds_c)):
                 fig_curva = go.Figure()
@@ -752,87 +903,87 @@ with tab_sim:
                     y=preds_p90 + preds_p10[::-1],
                     fill='toself', fillcolor='rgba(227, 6, 19, 0.2)',
                     line=dict(color='rgba(255,255,255,0)'),
-                    name='Banda Conformal P10–P90'
+                    name='Intervalo Conformal P10–P90'
                 ))
                 fig_curva.add_trace(go.Scatter(
                     x=dias_num, y=preds_c, mode='lines+markers+text',
                     line=dict(color='#E30613', width=3),
                     marker=dict(size=9, color='#ffffff', line=dict(width=2, color='#E30613')),
                     text=[f"{v:.0f}" if not np.isnan(v) else "" for v in preds_c],
-                    textposition="top center", name='Curva Cinética'
+                    textposition="top center", name='Evolución Predicha'
                 ))
                 fig_curva.update_layout(
-                    title=f"Curva de Desarrollo de Resistencia ({tipo_cemento_label})",
-                    xaxis_title="Edad (Días)", yaxis_title="Resistencia (kg/cm²)",
-                    template="plotly_dark", height=320
+                    title=f"Curva Multi-Edad de Evolución de Resistencia — {tipo_cemento_label}",
+                    xaxis_title="Edad (días)", yaxis_title="Resistencia (kg/cm²)",
+                    template="plotly_dark", height=330
                 )
                 st.plotly_chart(fig_curva, use_container_width=True)
 
 # ------------------------------------------------------------------------------
-# PESTAÑA 2: CARGA MASIVA SINCRONIZADA CON EL HORIZONTE
+# PESTAÑA 2: CARGA POR LOTES & MÉTRICAS (LIMPIEZA AUTOMÁTICA DE BD EN BRUTO)
 # ------------------------------------------------------------------------------
 with tab_batch:
-    st.markdown("##### 📂 Validación Masiva y Pronóstico de Lotes en Curado (`.xlsx`)")
-    
-    # Sincronización automática de la edad a evaluar según el horizonte superior seleccionado
-    mapa_horizonte_batch = {
-        "1 Día (Resistencia Temprana)": "1d",
-        "3 Días (Control Operativo)": "3d",
-        "7 Días (Desempeño Intermedio)": "7d",
-        "28 Días (Certificación Final)": "28d"
-    }
-    edad_batch = mapa_horizonte_batch.get(horizonte, "3d")
-    st.info(f"ℹ️ Edad de evaluación sincronizada automáticamente con el horizonte superior: **{edad_batch.upper()}**")
+    st.markdown("##### 📂 Carga por Lotes y Resultado de Métricas (`.xlsx`)")
 
-    archivo_subido = st.file_uploader(f"Sube tu Excel de {tipo_cemento_label}", type=["xlsx"])
+    mapa_horizonte_batch = {
+        "1 día": "1d",
+        "3 días": "3d",
+        "7 días": "7d",
+        "28 días": "28d"
+    }
+    edad_batch = mapa_horizonte_batch.get(edad_label, "28d")
+    target_col = f"{edad_batch[:-1]}_d"
+
+    st.caption(
+        f"Edad activa: **{edad_batch[:-1]} días**. El motor elimina automáticamente las columnas previas a `Fecha` (`N°`, `ALSE`), "
+        f"transforma los encabezados de laboratorio, descarta las demás edades y corta las filas finales de `Promedio / Desviación Estandar`."
+    )
+    archivo_subido = st.file_uploader(f"Sube el archivo Excel exportado de la base de datos ({tipo_cemento_label})", type=["xlsx"])
 
     if archivo_subido is not None:
-        df_lotes = pd.read_excel(archivo_subido)
+        df_raw = pd.read_excel(archivo_subido)
+        df_vista, df_mod = limpiar_dataframe_lotes(
+            df_raw, cfg["features"], cfg["defaults"], edad_seleccionada=edad_batch
+        )
+        st.session_state[f"lotes_{cod_cem}"] = (df_vista, df_mod)
+
         mod_b, _ = REPO_MODELOS[cod_cem][edad_batch]
-        target_col = f"{edad_batch[:-1]}_d"
-
-        if mod_b is not None:
+        if mod_b is not None and len(df_mod) > 0:
             y_b, p10_b, p90_b = predecir_con_modelo(
-                mod_b, df_lotes, cfg["features"], sigma_fallback=cfg["incertidumbre_base"][edad_batch]
+                mod_b, df_mod, cfg["features"], sigma_fallback=cfg["incertidumbre_base"][edad_batch]
             )
-            df_out = df_lotes.copy()
-            df_out.insert(0, f"{edad_batch}_PREDICTION", np.round(y_b, 2))
-            df_out["P10_Min_Riesgo"] = np.round(p10_b, 2)
-            df_out["P90_Max_Potencial"] = np.round(p90_b, 2)
-
-            # Limpiar filas de promedios en la salida también
-            if len(df_out) > 0:
-                col_p = str(df_out.columns[0])
-                df_out = df_out[~df_out[col_p].astype(str).str.lower().str.contains('promedio|average|media|total|sum', na=False)]
+            df_out = df_vista.copy()
+            df_out.insert(0, f"{edad_batch}_PREDICTION", np.round(y_b, 0))
 
             if target_col in df_out.columns:
                 y_real_b = pd.to_numeric(df_out[target_col], errors='coerce')
                 mask_b = y_real_b.notna()
 
-                df_out["MAE"] = np.where(mask_b, np.round(np.abs(y_real_b - y_b[:len(df_out)]), 2), np.nan)
+                df_out["MAE"] = np.where(mask_b, np.round(np.abs(y_real_b - y_b), 2), np.nan)
                 df_out["MAPE (%)"] = np.where(mask_b, np.round((df_out["MAE"] / y_real_b) * 100, 2), np.nan)
+                df_out["RMSE"] = np.where(mask_b, np.round((y_real_b - y_b) ** 2, 2), np.nan)
 
                 if mask_b.sum() > 0:
-                    mae_g = mean_absolute_error(y_real_b[mask_b], y_b[:len(df_out)][mask_b])
-                    mape_g = np.mean(np.abs((y_real_b[mask_b] - y_b[:len(df_out)][mask_b]) / y_real_b[mask_b])) * 100
-                    rmse_g = np.sqrt(mean_squared_error(y_real_b[mask_b], y_b[:len(df_out)][mask_b]))
-                    st.session_state["ultimo_df_validado"] = (df_out, y_real_b[mask_b], y_b[:len(df_out)][mask_b], edad_batch)
+                    mae_g = mean_absolute_error(y_real_b[mask_b], y_b[mask_b])
+                    mape_g = np.mean(np.abs((y_real_b[mask_b] - y_b[mask_b]) / y_real_b[mask_b])) * 100
+                    rmse_g = np.sqrt(mean_squared_error(y_real_b[mask_b], y_b[mask_b]))
+                    st.session_state["ultimo_df_validado"] = (df_out, y_real_b[mask_b], y_b[mask_b], edad_batch)
 
                     m1, m2, m3, m4 = st.columns(4)
                     m1.metric("MAE Promedio", f"{mae_g:.2f} kg/cm²")
                     m2.metric("MAPE Promedio", f"{mape_g:.2f}%")
                     m3.metric("RMSE Global", f"{rmse_g:.2f} kg/cm²")
-                    m4.metric("Lotes Evaluados", f"{mask_b.sum()} reales / {(~mask_b).sum()} pronóstico")
+                    m4.metric("Lotes Procesados", f"{mask_b.sum()} reales | {(~mask_b).sum()} en curado")
 
-            st.dataframe(df_out, use_container_width=True, height=340)
+            st.dataframe(df_out, use_container_width=True, height=360)
 
             buffer = io.BytesIO()
             with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                df_out.to_excel(writer, index=False, sheet_name=f"Resultados_{cod_cem}_{edad_batch}")
+                df_out.to_excel(writer, index=False, sheet_name=f"DCCAI_{cod_cem}_{edad_batch}")
             st.download_button(
-                label=f"⬇️ Descargar Reporte Excel ({cod_cem} - {edad_batch})",
+                label=f"⬇️ Descargar Reporte de Métricas ({cod_cem} - {edad_batch})",
                 data=buffer.getvalue(),
-                file_name=f"DCCAI_MARCO_Resultados_{cod_cem}_{edad_batch}.xlsx",
+                file_name=f"DCCAI_Resultados_{cod_cem}_{edad_batch}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True
             )
@@ -840,10 +991,10 @@ with tab_batch:
             st.error(f"No se pudo cargar el archivo `.pkl` de **{cod_cem} - {edad_batch}**.")
 
 # ------------------------------------------------------------------------------
-# PESTAÑA 3: DIAGNÓSTICO SPC
+# PESTAÑA 3: DIAGNÓSTICO DE RESIDUALES & CONTROL ESTADÍSTICO
 # ------------------------------------------------------------------------------
 with tab_spc:
-    st.markdown("##### 📈 Auditoría de Residuales y Control Estadístico de Proceso (ASTM C109)")
+    st.markdown("##### 📈 Diagnóstico de Residuales y Control Estadístico")
     if "ultimo_df_validado" in st.session_state:
         df_v, y_r, y_p, ed_v = st.session_state["ultimo_df_validado"]
         residuales = y_p - y_r
@@ -852,31 +1003,32 @@ with tab_spc:
         g1, g2 = st.columns(2)
         with g1:
             fig_sc = px.scatter(
-                x=y_r, y=y_p, labels={'x': 'Real (kg/cm²)', 'y': 'Predicción DCCAI (kg/cm²)'},
-                title=f"Predicción vs Real ({cod_cem} - {ed_v})"
+                x=y_r, y=y_p, labels={'x': 'Valor Real (kg/cm²)', 'y': 'Predicción DCCAI (kg/cm²)'},
+                title=f"Predicción vs Valor Real ({cod_cem} - {ed_v})"
             )
             min_v, max_v = min(y_r.min(), y_p.min()), max(y_r.max(), y_p.max())
             fig_sc.add_shape(type="line", x0=min_v, y0=min_v, x1=max_v, y1=max_v, line=dict(color="#E30613", dash="dash"))
-            fig_sc.update_layout(template="plotly_dark", height=320)
+            fig_sc.update_layout(template="plotly_dark", height=330)
             st.plotly_chart(fig_sc, use_container_width=True)
 
         with g2:
             fig_res = px.scatter(
-                x=y_r, y=residuales, labels={'x': 'Real (Actual)', 'y': 'Residual (Pred - Real)'},
-                title=f"Residuales vs Real (Pendiente = {pendiente:.3f})"
+                x=y_r, y=residuales, labels={'x': 'Valor Real (kg/cm²)', 'y': 'Residual (Predicho - Real)'},
+                title=f"Distribución de Residuales (Pendiente = {pendiente:.3f})"
             )
             fig_res.add_hline(y=0, line_color="white", line_dash="solid")
-            fig_res.update_layout(template="plotly_dark", height=320)
+            fig_res.update_layout(template="plotly_dark", height=330)
             st.plotly_chart(fig_res, use_container_width=True)
     else:
-        st.info("Sube un archivo Excel en la pestaña de Carga Masiva para habilitar los gráficos SPC.")
+        st.info("Carga un archivo en la pestaña **Carga por Lotes & Métricas** para visualizar el diagnóstico de residuales.")
 
-# Pie de página institucional limpio (sin repeticiones)
+# ==============================================================================
+# 7. PIE DE PÁGINA INSTITUCIONAL
+# ==============================================================================
 st.markdown("""
 <div class="footer-disclaimer">
-    <b>UNACEM &bull; DIVISIÓN DE CONTROL DE CALIDAD ATOCONGO - DCCA</b> &nbsp;|&nbsp; 
-    DCCAI / QuAI — M.A.R.C.O. v2.0 &nbsp;|&nbsp; 
-    Elaborado por: Ing. Marco Antonio Uriel Martínez Sánchez (Martínez Sánchez, Marco Antonio Uriel)<br>
-    Las estimaciones e intervalos conformales son herramientas de soporte operativo y no sustituyen los ensayos físicos oficiales bajo norma ASTM C109.
+    <b>UNACEM &mdash; DIVISIÓN DE CONTROL DE CALIDAD ATOCONGO (DCCAI)</b> &nbsp;|&nbsp;
+    <b>Elaborado por:</b> Ing. CIP Marco Antonio Uriel Martínez Sánchez<br>
+    Las estimaciones e intervalos conformales son herramientas de soporte operativo y pueden presentar variaciones de acuerdo al proceso.
 </div>
 """, unsafe_allow_html=True)
