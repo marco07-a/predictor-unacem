@@ -89,7 +89,7 @@ def reparar_compatibilidad_sklearn(obj):
 # 1. CONFIGURACIÓN DE PÁGINA Y ESCALA TIPOGRÁFICA BALANCEADA
 # ==============================================================================
 st.set_page_config(
-    page_title="DCCAI: Inteligencia Artificial para Ingeniería de Procesos | UNACEM",
+    page_title="DCCAI: Inteligencia Artificial para el Control de Calidad | UNACEM",
     page_icon="🏭",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -181,7 +181,7 @@ st.markdown("""
         line-height: 1.2;
     }
     .main-subtitle {
-        font-size: 0.82rem;
+        font-size: 0.84rem;
         color: #94A3B8;
         margin-top: 3px;
     }
@@ -357,11 +357,11 @@ if "splash_mostrado" not in st.session_state:
         f'{logo_html}'
         f'<div class="splash-dcca">DIVISIÓN DE CONTROL DE CALIDAD ATOCONGO - DCCA</div>'
         f'<div class="splash-title">DCC<span style="color:#E30613;">AI</span></div>'
-        f'<div style="color:#E2E8F0; font-size:1.08rem; font-weight:600; margin-bottom:6px;">'
-        f'Inteligencia Artificial para Ingeniería de Procesos y Predicción de Resistencia'
+        f'<div style="color:#E2E8F0; font-size:1.10rem; font-weight:600; margin-bottom:6px;">'
+        f'Inteligencia Artificial para el Control de Calidad'
         f'</div>'
-        f'<div style="color:#94A3B8; font-size:0.90rem; margin-bottom:14px;">'
-        f'Control Predictivo en Tiempo Real &bull; Difracción de Rayos X (Rietveld) &bull; Fluorescencia XRF'
+        f'<div style="color:#94A3B8; font-size:0.92rem; margin-bottom:14px;">'
+        f'Modelamiento Predictivo de Resistencia a la Compresión'
         f'</div>'
         f'{div_bolsas_splash}'
         f'<div style="border-top:1px solid #334155; padding-top:15px; font-size:0.96rem; color:#F8FAFC;">'
@@ -372,7 +372,7 @@ if "splash_mostrado" not in st.session_state:
 
     with placeholder.container():
         st.markdown(splash_html, unsafe_allow_html=True)
-        barra = st.progress(0, text="Inicializando motores predictivos de Ingeniería de Procesos...")
+        barra = st.progress(0, text="Inicializando arquitectura predictiva DCCAI...")
         for pct in range(0, 101, 20):
             time.sleep(0.80)
             barra.progress(pct, text="Sincronizando modelos de Machine Learning (Sol • Apu • Andino)...")
@@ -761,8 +761,8 @@ header_html = (
     f'{logo_header_html}'
     f'<div>'
     f'<div class="brand-tag">DIVISIÓN DE CONTROL DE CALIDAD ATOCONGO - DCCA</div>'
-    f'<div class="main-title">DCC<span style="color:#E30613;">AI</span>: Inteligencia Artificial para Ingeniería de Procesos</div>'
-    f'<div class="main-subtitle">Control Predictivo de Resistencia a la Compresión y Optimización Fisicoquímica en Tiempo Real</div>'
+    f'<div class="main-title">DCC<span style="color:#E30613;">AI</span>: Inteligencia Artificial para el Control de Calidad</div>'
+    f'<div class="main-subtitle">Modelamiento Predictivo de Resistencia a la Compresión</div>'
     f'</div>'
     f'</div>'
     f'<div class="author-badge">Elaborado por Ing. CIP Marco Antonio Uriel Martínez Sánchez</div>'
@@ -801,7 +801,7 @@ with col_bag:
 
 
 # ==============================================================================
-# 6. PESTAÑAS EJECUTIVAS DE INGENIERÍA DE PROCESOS (ORTOGRAFÍA RAE)
+# 6. PESTAÑAS EJECUTIVAS DE CONTROL DE CALIDAD (ORTOGRAFÍA RAE)
 # ==============================================================================
 tab_sim, tab_batch, tab_spc = st.tabs([
     "🎛️ Inferencia y Variables Predictoras",
@@ -919,7 +919,6 @@ with tab_sim:
     k3.markdown(f'<div class="kpi-mini"><div class="kpi-mini-title">Sulfatos Solubles</div><div class="kpi-mini-val">{sulf_solubles:.2f}%</div></div>', unsafe_allow_html=True)
     k4.markdown(f'<div class="kpi-mini"><div class="kpi-mini-title">Balance SO3 / (C3A+Álc)</div><div class="kpi-mini-val">{balance_so3:.2f}</div></div>', unsafe_allow_html=True)
 
-    # Selector de estilo visual cuando está en evolución multiedad
     estilo_multiedad = "📈 Curva Cinética Continua"
     if "multiedad" in edad_label:
         estilo_multiedad = st.radio(
@@ -952,7 +951,7 @@ with tab_sim:
                 card_html = (
                     f'<div class="result-card">'
                     f'{bag_card_html}'
-                    f'<div style="font-size:0.80rem; color:#94A3B8; text-transform:uppercase; margin-bottom:6px;">'
+                    f'<div style="font-size:0.80rem; color:#94A3B8; font-weight:700; margin-bottom:6px;">'
                     f'{tipo_cemento_label} &bull; {edad_label}'
                     f'</div>'
                     f'<div class="result-value">{val_c} <span class="result-unit">kg/cm²</span></div>'
@@ -978,12 +977,14 @@ with tab_sim:
                         textposition='auto'
                     ))
                     fig_imp.update_layout(
-                        title="Importancia de Variables Predictoras (Feature Importance)",
+                        title="Sensibilidad en la Varianza Operativa (Feature Importance)",
                         template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                        height=285, margin=dict(l=10, r=10, t=35, b=10),
-                        xaxis_title="Peso Relativo en el Modelo (%)"
+                        xaxis=dict(title="Peso Relativo en la Variabilidad del Proceso (%)", showgrid=False),
+                        yaxis=dict(showgrid=False),
+                        height=275, margin=dict(l=10, r=10, t=35, b=10)
                     )
                     st.plotly_chart(fig_imp, use_container_width=True)
+                    st.caption("ℹ️ *Nota técnica: Refleja qué parámetros fisicoquímicos gobiernan las variaciones día a día dentro del rango operativo de planta.*")
             else:
                 st.error(f"No se encontró el modelo `.pkl` para **{cod_cem} - {edad_elegida}**.")
         else:
@@ -1006,7 +1007,7 @@ with tab_sim:
                     preds_p90.append(vp90)
                     mini_card_html = (
                         f'<div class="result-card" style="padding:14px;">'
-                        f'<div style="font-size:0.76rem; color:#94A3B8; font-weight:700;">{etiquetas_ed[idx].upper()}</div>'
+                        f'<div style="font-size:0.80rem; color:#94A3B8; font-weight:700;">{etiquetas_ed[idx]}</div>'
                         f'<div class="result-value" style="font-size:2.15rem;">{vc} <span class="result-unit" style="font-size:0.92rem;">kg/cm²</span></div>'
                         f'<div style="font-size:0.73rem; color:#94A3B8; margin-top:4px;">P10–P90: [{vp10} – {vp90}]</div>'
                         f'</div>'
@@ -1042,9 +1043,10 @@ with tab_sim:
                             title="Edad de Ensayo",
                             tickmode="array",
                             tickvals=[1, 3, 7, 28],
-                            ticktext=["1 día", "3 días", "7 días", "28 días"]
+                            ticktext=["1 día", "3 días", "7 días", "28 días"],
+                            showgrid=False
                         ),
-                        yaxis=dict(title="Resistencia (kg/cm²)", tickformat="d"),
+                        yaxis=dict(title="Resistencia (kg/cm²)", tickformat="d", showgrid=False),
                         template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                         height=340
                     )
@@ -1062,15 +1064,15 @@ with tab_sim:
                     ))
                     fig_curva.update_layout(
                         title=f"Desarrollo Comparativo de Resistencia por Edad (1, 3, 7 y 28 días): {cfg['marca']}",
-                        xaxis=dict(title="Edad de Ensayo"),
-                        yaxis=dict(title="Resistencia (kg/cm²)", tickformat="d", range=[0, max(preds_p90) * 1.15]),
+                        xaxis=dict(title="Edad de Ensayo", showgrid=False),
+                        yaxis=dict(title="Resistencia (kg/cm²)", tickformat="d", range=[0, max(preds_p90) * 1.15], showgrid=False),
                         template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                         height=340
                     )
                 st.plotly_chart(fig_curva, use_container_width=True)
 
 # ------------------------------------------------------------------------------
-# PESTAÑA 2: CARGA POR LOTES Y MÉTRICAS (3 KPIs COMPACTOS AL FINAL SIN LOTES)
+# PESTAÑA 2: CARGA POR LOTES Y MÉTRICAS (3 KPIs COMPACTOS AL FINAL)
 # ------------------------------------------------------------------------------
 with tab_batch:
     st.markdown("##### 📂 Carga por Lotes y Resultado de Métricas")
@@ -1127,10 +1129,8 @@ with tab_batch:
                         rmse_g = np.sqrt(mean_squared_error(y_r_valid, y_p_valid))
                         st.session_state["ultimo_df_validado"] = (df_out, y_r_valid, y_p_valid, fechas_valid, edad_batch)
 
-                # 1. Tabla de datos limpia
                 st.dataframe(df_out, use_container_width=True, height=370)
 
-                # 2. Resumen compacto y equilibrado al final (solo MAE, MAPE y RMSE)
                 if mae_g is not None:
                     st.markdown('<div class="section-header">📊 Resumen Estadístico de Desempeño del Modelo</div>', unsafe_allow_html=True)
                     m1, m2, m3 = st.columns(3)
@@ -1168,16 +1168,17 @@ with tab_batch:
             st.error(f"Error al procesar el archivo Excel: {e}")
 
 # ------------------------------------------------------------------------------
-# PESTAÑA 3: 3 GRÁFICOS DE CONTROL ESTADÍSTICO (SIN DECIMALES NI LÍNEA ROJA)
+# PESTAÑA 3: 3 GRÁFICOS SIN CUADRÍCULA DE FONDO (SHOWGRID=FALSE)
 # ------------------------------------------------------------------------------
 with tab_spc:
-    st.markdown("##### 📈 Diagnóstico de Residuales y Control Estadístico de Procesos")
+    st.markdown("##### 📈 Diagnóstico de Residuales y Control Estadístico de Calidad")
     if "ultimo_df_validado" in st.session_state:
         df_v, y_r, y_p, fechas_v, ed_v = st.session_state["ultimo_df_validado"]
         y_r_int = np.round(y_r).astype(int)
         y_p_int = np.round(y_p).astype(int)
         residuales_int = (y_p_int - y_r_int).astype(int)
 
+        # GRÁFICO 1: SEGUIMIENTO TEMPORAL LIMPIO (SIN LÍNEAS HORIZONTALES DE FONDO)
         fig_time = go.Figure()
         fig_time.add_trace(go.Scatter(
             x=fechas_v, y=y_r_int,
@@ -1188,22 +1189,22 @@ with tab_spc:
         ))
         fig_time.add_trace(go.Scatter(
             x=fechas_v, y=y_p_int,
-            mode='lines+markers',
+            mode='markers',
             name='Dato Predicho (DCCAI)',
-            line=dict(color='rgba(227, 6, 19, 0.45)', width=1.5, dash='dot'),
-            marker=dict(symbol='circle', size=8, color='#E30613'),
+            marker=dict(symbol='circle', size=9, color='#E30613', line=dict(width=1, color='#F8FAFC')),
             hovertemplate="Fecha: %{x}<br>Dato Predicho: %{y:d} kg/cm²<extra></extra>"
         ))
         fig_time.update_layout(
             title=f"Seguimiento Temporal de Resistencias por Fecha ({cod_cem} - {ed_v})",
-            xaxis=dict(title="Fecha de Molienda", type="category"),
-            yaxis=dict(title="Resistencia (kg/cm²)", tickformat="d"),
+            xaxis=dict(title="Fecha de Molienda", type="category", showgrid=False),
+            yaxis=dict(title="Resistencia (kg/cm²)", tickformat="d", showgrid=False, zeroline=False),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
             height=350
         )
         st.plotly_chart(fig_time, use_container_width=True)
 
+        # GRÁFICOS 2 Y 3: PREDICCIÓN VS REAL Y RESIDUALES (SIN CUADRÍCULA DE FONDO)
         g1, g2 = st.columns(2)
         with g1:
             fig_sc = go.Figure()
@@ -1216,8 +1217,8 @@ with tab_spc:
             ))
             fig_sc.update_layout(
                 title=f"Predicción vs Valor Real ({cod_cem} - {ed_v})",
-                xaxis=dict(title="Valor Real (kg/cm²)", tickformat="d"),
-                yaxis=dict(title="Predicción DCCAI (kg/cm²)", tickformat="d"),
+                xaxis=dict(title="Valor Real (kg/cm²)", tickformat="d", showgrid=False, zeroline=False),
+                yaxis=dict(title="Predicción DCCAI (kg/cm²)", tickformat="d", showgrid=False, zeroline=False),
                 template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                 height=330
             )
@@ -1232,11 +1233,11 @@ with tab_spc:
                 marker=dict(symbol='circle', size=9, color='#E30613', line=dict(width=1, color='#F8FAFC')),
                 hovertemplate="Valor Real: %{x:d} kg/cm²<br>Residual: %{y:+d} kg/cm²<extra></extra>"
             ))
-            fig_res.add_hline(y=0, line_color="#94A3B8", line_dash="solid")
+            fig_res.add_hline(y=0, line_color="#64748B", line_dash="dash", line_width=1)
             fig_res.update_layout(
                 title=f"Distribución de Residuales ({cod_cem} - {ed_v})",
-                xaxis=dict(title="Valor Real (kg/cm²)", tickformat="d"),
-                yaxis=dict(title="Residual (Predicho - Real) [kg/cm²]", tickformat="d"),
+                xaxis=dict(title="Valor Real (kg/cm²)", tickformat="d", showgrid=False, zeroline=False),
+                yaxis=dict(title="Residual (Predicho - Real) [kg/cm²]", tickformat="d", showgrid=False, zeroline=False),
                 template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                 height=330
             )
