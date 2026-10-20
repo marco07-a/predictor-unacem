@@ -97,7 +97,6 @@ st.set_page_config(
 )
 
 def obtener_data_uri_imagen(nombre_base):
-    """Detecta automáticamente .png, .jpg o .jpeg y verifica la firma binaria real."""
     for ext in ["", ".png", ".jpg", ".jpeg", ".PNG", ".JPG", ".JPEG"]:
         ruta = f"{nombre_base}{ext}"
         if os.path.exists(ruta) and os.path.isfile(ruta):
@@ -444,22 +443,19 @@ def cargar_repositorio_modelos():
             "1d": ["modelo_GU_1d_produccion.pkl", "modelo_M35_1dia_produccion.pkl"],
             "3d": ["modelo_GU_3d_produccion.pkl", "modelo_M35_3dias_produccion.pkl"],
             "7d": ["modelo_GU_7d_produccion.pkl", "modelo_M35_7dias_produccion.pkl"],
-            "28d": ["modelo_GU_28d_PRO_produccion.pkl", "modelo_GU_28d_produccion.pkl", "modelo_M34_28d_produccion.pkl"],
-            "28d_CASCADA": ["modelo_GU_28d_CASCADA_produccion.pkl"]
+            "28d": ["modelo_GU_28d_PRO_produccion.pkl", "modelo_GU_28d_produccion.pkl", "modelo_M34_28d_produccion.pkl"]
         },
         "TI": {
             "1d": ["modelo_TI_1d_produccion.pkl"],
             "3d": ["modelo_TI_3d_produccion.pkl"],
             "7d": ["modelo_TI_7d_produccion.pkl"],
-            "28d": ["modelo_TI_28d_PRO_produccion.pkl", "modelo_TI_28d_produccion.pkl"],
-            "28d_CASCADA": ["modelo_TI_28d_CASCADA_produccion.pkl"]
+            "28d": ["modelo_TI_28d_PRO_produccion.pkl", "modelo_TI_28d_produccion.pkl"]
         },
         "HS": {
             "1d": ["modelo_HS_1d_produccion.pkl"],
             "3d": ["modelo_HS_3d_produccion.pkl"],
             "7d": ["modelo_HS_7d_produccion.pkl"],
-            "28d": ["modelo_HS_28d_PRO_produccion.pkl", "modelo_HS_28d_produccion.pkl"],
-            "28d_CASCADA": ["modelo_HS_28d_CASCADA_produccion.pkl"]
+            "28d": ["modelo_HS_28d_PRO_produccion.pkl", "modelo_HS_28d_produccion.pkl"]
         }
     }
     repo = {"GU": {}, "TI": {}, "HS": {}}
@@ -482,45 +478,97 @@ REPO_MODELOS = cargar_repositorio_modelos()
 
 
 # ==============================================================================
-# 4. MOTOR ETL: LIMPIEZA EXACTA DEL EXCEL EXPORTADO DE BASE DE DATOS
+# 4. LECTOR UNIVERSAL DE EXCEL (2003 .XLS A 2026 .XLSX) Y MOTOR ETL A PRUEBA DE FALLOS
 # ==============================================================================
 def normalizar_nombre(texto):
+    if texto is None or pd.isna(texto):
+        return ""
     return re.sub(
         r'[^a-z0-9]', '',
         unicodedata.normalize('NFKD', str(texto)).encode('ASCII', 'ignore').decode('utf-8').lower()
     )
 
-def parsear_fecha_robusta(serie_fecha):
-    """Convierte fechas de Excel incluso cuando vienen con '12:00 a. m.' o 'p. m.' en texto."""
-    limpia = (
-        serie_fecha.astype(str)
-        .str.replace(r'\s+12:00\s*a\.?\s*m\.?', '', flags=re.IGNORECASE, regex=True)
-        .str.replace(r'a\.?\s*m\.?', 'AM', flags=re.IGNORECASE, regex=True)
-        .str.replace(r'p\.?\s*m\.?', 'PM', flags=re.IGNORECASE, regex=True)
-        .str.strip()
-    )
-    return pd.to_datetime(limpia, errors='coerce')
+def leer_excel_universal(archivo_subido):
+    """Soporta Excel 2007-2026 (.xlsx/.xlsm), Excel 97-2003 (.xls), tablas HTML/XML y CSV."""
+    bytes_data = archivo_subido.getvalue()
+    nombre = archivo_subido.name.lower()
+
+    # 1. Intento directo según extensión
+    for engine in [None, "openpyxl", "xlrd"]:
+        try:
+            return pd.read_excel(io.BytesIO(bytes_data), engine=engine)
+        except Exception:
+            pass
+
+    # 2. Si es un archivo .xls exportado como tabla HTML o texto tabulado desde sistema antiguo
+    try:
+        tablas = pd.read_html(io.BytesIO(bytes_data))
+        if tablas:
+            return tablas[0]
+    except Exception:
+        pass
+
+    try:
+        return pd.read_csv(io.BytesIO(bytes_data), sep=None, engine="python")
+    except Exception as e:
+        raise ValueError(f"No se pudo decodificar el archivo '{nombre}'. Detalle: {e}")
+
+def formatear_valor_fecha(val):
+    """Convierte cualquier celda de fecha (Timestamp, datetime o texto con '12:00 a. m.') a YYYY-MM-DD."""
+    if val is None or pd.isna(val):
+        return None
+    if hasattr(val, "strftime"):
+        return val.strftime("%Y-%m-%d")
+    txt = str(val).strip()
+    if not txt or txt.lower() in ["nan", "nat", "none", ""]:
+        return None
+    txt = re.sub(r'\s+12:00\s*a\.?\s*m\.?', '', txt, flags=re.IGNORECASE)
+    txt = re.sub(r'a\.?\s*m\.?', 'AM', txt, flags=re.IGNORECASE)
+    txt = re.sub(r'p\.?\s*m\.?', 'PM', txt, flags=re.IGNORECASE)
+    dt = pd.to_datetime(txt, errors='coerce')
+    if pd.notna(dt):
+        return dt.strftime("%Y-%m-%d")
+    return None
+
+def a_serie_numerica(df_or_series):
+    """Garantiza extraer una Serie 1D numérica aunque existan columnas duplicadas en el Excel."""
+    if isinstance(df_or_series, pd.DataFrame):
+        s = df_or_series.iloc[:, 0]
+    else:
+        s = df_or_series
+    return pd.to_numeric(s, errors='coerce')
 
 def limpiar_dataframe_lotes(df_raw, features_esperadas, defaults_cem, edad_seleccionada=None):
     """
-    1. Trunca desde la fila 'Promedio / Desviación Estandar' hacia abajo.
-    2. Elimina todas las columnas a la izquierda de 'Fecha' (N°, ALSE/FALSE y blancos).
-    3. Renombra los encabezados crudos (%Cal, % PuzAre, % Slag, 24 hrs...) al estándar del modelo.
-    4. Conserva únicamente la columna de la edad seleccionada (1_d, 3_d, 7_d o 28_d).
+    1. Si el encabezado real ('Fecha', '%Cal', 'Alita') está en la fila 1 o 2, lo promueve automáticamente.
+    2. Trunca desde la fila 'Promedio / Desviación Estandar' hacia abajo (compatible con Pandas 3.0).
+    3. Elimina todas las columnas a la izquierda de 'Fecha' (N°, ALSE/FALSE y blancos).
+    4. Renombra encabezados crudos al estándar del modelo y conserva solo la edad seleccionada.
     """
     df = df_raw.copy()
 
-    # PASO 1: Cortar desde la fila "Promedio / Desviación Estandar" hacia abajo
+    # PASO 0: Si la primera fila contiene los nombres de columnas ('Fecha', 'Alita', '%Cal'), usarla como encabezado
+    cols_norm_actual = [normalizar_nombre(c) for c in df.columns]
+    if not any(k in cols_norm_actual for k in ['fecha', 'alita', 'blaine', 'cal', 'caliza']):
+        for r_idx in range(min(5, len(df))):
+            fila_vals = [normalizar_nombre(v) for v in df.iloc[r_idx].values if pd.notna(v)]
+            if any(k in fila_vals for k in ['fecha', 'alita', 'blaine', 'cal', 'caliza']):
+                df.columns = [str(v).strip() if pd.notna(v) else f"col_{k}" for k, v in enumerate(df.iloc[r_idx].values)]
+                df = df.iloc[r_idx + 1:].reset_index(drop=True)
+                break
+
+    # PASO 1: Cortar desde la fila "Promedio / Desviación Estandar" hacia abajo (sin usar .astype(str) de Pandas 3.0)
     idx_corte = None
     for i in range(len(df)):
-        fila_texto = " ".join(df.iloc[i].astype(str).tolist()).lower()
-        if any(p in fila_texto for p in ["promedio", "desviacion", "desviación", "estandar", "estándar"]):
+        textos_fila = [str(v).lower() for v in df.iloc[i].values if v is not None and not pd.isna(v)]
+        fila_texto = " ".join(textos_fila)
+        if any(p in fila_texto for p in ["promedio", "desviacion", "desviación", "estandar", "estándar", "average"]):
             idx_corte = i
             break
     if idx_corte is not None:
         df = df.iloc[:idx_corte].copy()
 
-    # PASO 2: Localizar 'Fecha' y descartar las columnas previas (N°, ALSE/FALSE, blancos)
+    # PASO 2: Localizar 'Fecha' y eliminar todas las columnas previas (N°, ALSE/FALSE, blancos)
     idx_col_fecha = None
     for j, col_name in enumerate(df.columns):
         if normalizar_nombre(col_name) in ['fecha', 'date', 'fechamolienda']:
@@ -539,22 +587,27 @@ def limpiar_dataframe_lotes(df_raw, features_esperadas, defaults_cem, edad_selec
             renombres[col] = 'Fecha'
     df = df.rename(columns=renombres)
 
-    # PASO 4: Filtrar cualquier fila sin Fecha válida (o filas vacías si ya venía recortado)
+    # Eliminar columnas duplicadas si existieran
+    df = df.loc[:, ~df.columns.duplicated()].copy()
+
+    # PASO 4: Limpiar fechas o filas vacías
     if 'Fecha' in df.columns:
-        fechas_dt = parsear_fecha_robusta(df['Fecha'])
-        df = df[fechas_dt.notna()].copy()
-        df['Fecha'] = fechas_dt[fechas_dt.notna()].dt.strftime('%Y-%m-%d')
+        fechas_limpias = [formatear_valor_fecha(v) for v in df['Fecha'].values]
+        df['Fecha'] = fechas_limpias
+        df = df[df['Fecha'].notna()].copy()
     else:
         cols_num = [c for c in features_esperadas if c in df.columns]
         if cols_num:
+            for c in cols_num:
+                df[c] = a_serie_numerica(df[c])
             df = df.dropna(subset=cols_num, how='all').copy()
 
-    # PASO 5: Construir DataFrame numérico para el modelo
+    # PASO 5: Construir DataFrame numérico alineado al modelo
     df_modelo = pd.DataFrame(index=df.index)
     cols_receta_fija = ['%Caliza', '%Yeso', '%Puzolana', '%Escoria']
     for col in features_esperadas:
         if col in df.columns:
-            serie_num = pd.to_numeric(df[col], errors='coerce')
+            serie_num = a_serie_numerica(df[col])
             if col in cols_receta_fija:
                 serie_num = serie_num.ffill().fillna(defaults_cem.get(col, 0.0))
             df_modelo[col] = serie_num
@@ -562,7 +615,7 @@ def limpiar_dataframe_lotes(df_raw, features_esperadas, defaults_cem, edad_selec
         else:
             df_modelo[col] = defaults_cem.get(col, 0.0)
 
-    # PASO 6: Conservar solo Fecha, variables predictoras y la edad activa
+    # PASO 6: Construir tabla final conservando solo Fecha, variables predictoras y la edad seleccionada
     columnas_vista = []
     if 'Fecha' in df.columns:
         columnas_vista.append('Fecha')
@@ -571,7 +624,7 @@ def limpiar_dataframe_lotes(df_raw, features_esperadas, defaults_cem, edad_selec
     if edad_seleccionada in ['1d', '3d', '7d', '28d']:
         target_activo = f"{edad_seleccionada[:-1]}_d"
         if target_activo in df.columns:
-            df[target_activo] = pd.to_numeric(df[target_activo], errors='coerce')
+            df[target_activo] = a_serie_numerica(df[target_activo])
             columnas_vista.append(target_activo)
 
     df_vista_final = df[columnas_vista].reset_index(drop=True)
@@ -651,7 +704,7 @@ header_html = (
 )
 st.markdown(header_html, unsafe_allow_html=True)
 
-col_sel1, col_sel2, col_sel3, col_bag = st.columns([1.35, 1.25, 1.0, 1.1])
+col_sel1, col_sel2, col_bag = st.columns([1.5, 1.5, 1.2])
 with col_sel1:
     tipo_cemento_label = st.selectbox("Cemento", list(CONFIG_CEMENTOS.keys()), index=1)
 with col_sel2:
@@ -666,11 +719,9 @@ with col_sel2:
         ],
         index=3
     )
-with col_sel3:
-    cfg = CONFIG_CEMENTOS[tipo_cemento_label]
-    cod_cem = cfg["codigo"]
-    st.write("")
-    usar_cascada_28d = st.toggle("Modo Cascada 28d", value=False)
+
+cfg = CONFIG_CEMENTOS[tipo_cemento_label]
+cod_cem = cfg["codigo"]
 
 with col_bag:
     bag_uri = BOLSAS_URI.get(cod_cem)
@@ -778,14 +829,6 @@ with tab_sim:
     with p4:
         fluidez = st.number_input("Fluidez (%)", value=float(defaults['Fluidez']), step=1.0, format="%.1f")
 
-    res_1d_real, res_3d_real = None, None
-    if usar_cascada_28d:
-        cc1, cc2 = st.columns(2)
-        with cc1:
-            res_1d_real = st.number_input("Resistencia Real 1 día (kg/cm²)", value=140.0, step=1.0)
-        with cc2:
-            res_3d_real = st.number_input("Resistencia Real 3 días (kg/cm²)", value=252.0, step=1.0)
-
     registro_actual = {
         '%Caliza': caliza, '%Yeso': yeso, '%Puzolana': puzolana, '%Escoria': escoria,
         'M325': m325, 'Blaine': blaine, 'SO3': so3, 'Álcali_Eq': alcali_eq,
@@ -794,10 +837,6 @@ with tab_sim:
         'Gypsum': gypsum, 'Hemidrato': hemidrato, 'Anhidrita': anhidrita,
         'Agua_Cemento': agua_cemento, 'Fluidez': fluidez
     }
-    if usar_cascada_28d:
-        registro_actual['1_d'] = res_1d_real
-        registro_actual['3_d'] = res_3d_real
-
     df_input_single = pd.DataFrame([registro_actual])
 
     # 4. INDICADORES FISICOQUÍMICOS DERIVADOS
@@ -819,13 +858,11 @@ with tab_sim:
         edad_elegida = mapa_edad.get(edad_label, "MULTI")
 
         if edad_elegida != "MULTI":
-            clave_m = "28d_CASCADA" if (edad_elegida == "28d" and usar_cascada_28d and REPO_MODELOS[cod_cem]["28d_CASCADA"][0] is not None) else edad_elegida
-            mod_obj, _ = REPO_MODELOS[cod_cem][clave_m]
+            mod_obj, _ = REPO_MODELOS[cod_cem][edad_elegida]
             sigma_fb = cfg["incertidumbre_base"][edad_elegida]
 
             if mod_obj is not None:
-                cols_req = features_activas + (['1_d', '3_d'] if clave_m == "28d_CASCADA" else [])
-                y_p, p10, p90 = predecir_con_modelo(mod_obj, df_input_single, cols_req, sigma_fallback=sigma_fb)
+                y_p, p10, p90 = predecir_con_modelo(mod_obj, df_input_single, features_activas, sigma_fallback=sigma_fb)
                 val_c, val_p10, val_p90 = float(y_p[0]), float(p10[0]), float(p90[0])
 
                 html_real = ""
@@ -924,10 +961,10 @@ with tab_sim:
                 st.plotly_chart(fig_curva, use_container_width=True)
 
 # ------------------------------------------------------------------------------
-# PESTAÑA 2: CARGA POR LOTES & MÉTRICAS (LIMPIEZA AUTOMÁTICA DE BD EN BRUTO)
+# PESTAÑA 2: CARGA POR LOTES & MÉTRICAS (COMPATIBLE CON EXCEL 2003 A 2026)
 # ------------------------------------------------------------------------------
 with tab_batch:
-    st.markdown("##### 📂 Carga por Lotes y Resultado de Métricas (`.xlsx`)")
+    st.markdown("##### 📂 Carga por Lotes y Resultado de Métricas (`.xlsx` / `.xls`)")
 
     mapa_horizonte_batch = {
         "1 día": "1d",
@@ -939,60 +976,68 @@ with tab_batch:
     target_col = f"{edad_batch[:-1]}_d"
 
     st.caption(
-        f"Edad activa: **{edad_batch[:-1]} días**. El motor elimina automáticamente las columnas previas a `Fecha` (`N°`, `ALSE`), "
-        f"transforma los encabezados de laboratorio, descarta las demás edades y corta las filas finales de `Promedio / Desviación Estandar`."
+        f"Edad activa: **{edad_batch[:-1]} días**. Soporta archivos Excel 97-2003 (`.xls`) y Excel 2007-2026 (`.xlsx`). "
+        f"Elimina automáticamente las columnas previas a `Fecha`, renombra encabezados de base de datos, filtra las demás edades y corta los promedios finales."
     )
-    archivo_subido = st.file_uploader(f"Sube el archivo Excel exportado de la base de datos ({tipo_cemento_label})", type=["xlsx"])
+    archivo_subido = st.file_uploader(
+        f"Sube el archivo Excel exportado de la base de datos ({tipo_cemento_label})",
+        type=["xlsx", "xls", "xlsm", "csv"]
+    )
 
     if archivo_subido is not None:
-        df_raw = pd.read_excel(archivo_subido)
-        df_vista, df_mod = limpiar_dataframe_lotes(
-            df_raw, cfg["features"], cfg["defaults"], edad_seleccionada=edad_batch
-        )
-        st.session_state[f"lotes_{cod_cem}"] = (df_vista, df_mod)
-
-        mod_b, _ = REPO_MODELOS[cod_cem][edad_batch]
-        if mod_b is not None and len(df_mod) > 0:
-            y_b, p10_b, p90_b = predecir_con_modelo(
-                mod_b, df_mod, cfg["features"], sigma_fallback=cfg["incertidumbre_base"][edad_batch]
+        try:
+            df_raw = leer_excel_universal(archivo_subido)
+            df_vista, df_mod = limpiar_dataframe_lotes(
+                df_raw, cfg["features"], cfg["defaults"], edad_seleccionada=edad_batch
             )
-            df_out = df_vista.copy()
-            df_out.insert(0, f"{edad_batch}_PREDICTION", np.round(y_b, 0))
+            st.session_state[f"lotes_{cod_cem}"] = (df_vista, df_mod)
 
-            if target_col in df_out.columns:
-                y_real_b = pd.to_numeric(df_out[target_col], errors='coerce')
-                mask_b = y_real_b.notna()
+            mod_b, _ = REPO_MODELOS[cod_cem][edad_batch]
+            if mod_b is not None and len(df_mod) > 0:
+                y_b, p10_b, p90_b = predecir_con_modelo(
+                    mod_b, df_mod, cfg["features"], sigma_fallback=cfg["incertidumbre_base"][edad_batch]
+                )
+                df_out = df_vista.copy()
+                df_out.insert(0, f"{edad_batch}_PREDICTION", np.round(y_b, 0))
 
-                df_out["MAE"] = np.where(mask_b, np.round(np.abs(y_real_b - y_b), 2), np.nan)
-                df_out["MAPE (%)"] = np.where(mask_b, np.round((df_out["MAE"] / y_real_b) * 100, 2), np.nan)
-                df_out["RMSE"] = np.where(mask_b, np.round((y_real_b - y_b) ** 2, 2), np.nan)
+                if target_col in df_out.columns:
+                    y_real_b = pd.to_numeric(df_out[target_col], errors='coerce')
+                    mask_b = y_real_b.notna()
 
-                if mask_b.sum() > 0:
-                    mae_g = mean_absolute_error(y_real_b[mask_b], y_b[mask_b])
-                    mape_g = np.mean(np.abs((y_real_b[mask_b] - y_b[mask_b]) / y_real_b[mask_b])) * 100
-                    rmse_g = np.sqrt(mean_squared_error(y_real_b[mask_b], y_b[mask_b]))
-                    st.session_state["ultimo_df_validado"] = (df_out, y_real_b[mask_b], y_b[mask_b], edad_batch)
+                    df_out["MAE"] = np.where(mask_b, np.round(np.abs(y_real_b - y_b), 2), np.nan)
+                    df_out["MAPE (%)"] = np.where(mask_b, np.round((df_out["MAE"] / y_real_b) * 100, 2), np.nan)
+                    df_out["RMSE"] = np.where(mask_b, np.round((y_real_b - y_b) ** 2, 2), np.nan)
 
-                    m1, m2, m3, m4 = st.columns(4)
-                    m1.metric("MAE Promedio", f"{mae_g:.2f} kg/cm²")
-                    m2.metric("MAPE Promedio", f"{mape_g:.2f}%")
-                    m3.metric("RMSE Global", f"{rmse_g:.2f} kg/cm²")
-                    m4.metric("Lotes Procesados", f"{mask_b.sum()} reales | {(~mask_b).sum()} en curado")
+                    if mask_b.sum() > 0:
+                        mae_g = mean_absolute_error(y_real_b[mask_b], y_b[mask_b])
+                        mape_g = np.mean(np.abs((y_real_b[mask_b] - y_b[mask_b]) / y_real_b[mask_b])) * 100
+                        rmse_g = np.sqrt(mean_squared_error(y_real_b[mask_b], y_b[mask_b]))
+                        st.session_state["ultimo_df_validado"] = (df_out, y_real_b[mask_b], y_b[mask_b], edad_batch)
 
-            st.dataframe(df_out, use_container_width=True, height=360)
+                        m1, m2, m3, m4 = st.columns(4)
+                        m1.metric("MAE Promedio", f"{mae_g:.2f} kg/cm²")
+                        m2.metric("MAPE Promedio", f"{mape_g:.2f}%")
+                        m3.metric("RMSE Global", f"{rmse_g:.2f} kg/cm²")
+                        m4.metric("Lotes Procesados", f"{mask_b.sum()} reales | {(~mask_b).sum()} en curado")
 
-            buffer = io.BytesIO()
-            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                df_out.to_excel(writer, index=False, sheet_name=f"DCCAI_{cod_cem}_{edad_batch}")
-            st.download_button(
-                label=f"⬇️ Descargar Reporte de Métricas ({cod_cem} - {edad_batch})",
-                data=buffer.getvalue(),
-                file_name=f"DCCAI_Resultados_{cod_cem}_{edad_batch}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
-            )
-        else:
-            st.error(f"No se pudo cargar el archivo `.pkl` de **{cod_cem} - {edad_batch}**.")
+                st.dataframe(df_out, use_container_width=True, height=360)
+
+                buffer = io.BytesIO()
+                with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                    df_out.to_excel(writer, index=False, sheet_name=f"DCCAI_{cod_cem}_{edad_batch}")
+                st.download_button(
+                    label=f"⬇️ Descargar Reporte de Métricas ({cod_cem} - {edad_batch})",
+                    data=buffer.getvalue(),
+                    file_name=f"DCCAI_Resultados_{cod_cem}_{edad_batch}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+            elif len(df_mod) == 0:
+                st.warning("El archivo fue leído pero no se detectaron filas válidas con las variables del cemento.")
+            else:
+                st.error(f"No se pudo cargar el archivo `.pkl` de **{cod_cem} - {edad_batch}**.")
+        except Exception as e:
+            st.error(f"Error al procesar el archivo Excel: {e}")
 
 # ------------------------------------------------------------------------------
 # PESTAÑA 3: DIAGNÓSTICO DE RESIDUALES & CONTROL ESTADÍSTICO
