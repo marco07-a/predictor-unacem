@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-import plotly.express as px
 import joblib
 import os
 import sys
@@ -87,10 +86,10 @@ def reparar_compatibilidad_sklearn(obj):
 
 
 # ==============================================================================
-# 1. CONFIGURACIÓN DE PÁGINA Y PSICOLOGÍA DEL COLOR (SLATE NAVY & UNACEM CRIMSON)
+# 1. CONFIGURACIÓN DE PÁGINA Y ESCALA TIPOGRÁFICA BALANCEADA
 # ==============================================================================
 st.set_page_config(
-    page_title="DCCAI | UNACEM - Ingeniería Predictiva de Procesos",
+    page_title="DCCAI: Inteligencia Artificial para Ingeniería de Procesos | UNACEM",
     page_icon="🏭",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -120,7 +119,7 @@ st.markdown("""
         background: linear-gradient(180deg, #0F172A 0%, #111827 100%) !important;
     }
     .block-container {
-        padding-top: 2.3rem !important;
+        padding-top: 2.2rem !important;
         padding-bottom: 1.5rem !important;
         max-width: 97% !important;
     }
@@ -129,26 +128,26 @@ st.markdown("""
         border: 1px solid #334155;
         border-top: 4px solid #E30613;
         border-radius: 18px;
-        padding: 55px 35px;
+        padding: 50px 35px;
         text-align: center;
-        margin: 45px auto;
-        max-width: 840px;
+        margin: 40px auto;
+        max-width: 820px;
         box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65);
     }
     .splash-dcca {
-        font-size: 1.04rem;
+        font-size: 0.98rem;
         font-weight: 800;
         color: #E30613;
-        letter-spacing: 2.4px;
+        letter-spacing: 2.2px;
         text-transform: uppercase;
-        margin-top: 18px;
+        margin-top: 16px;
         margin-bottom: 8px;
     }
     .splash-title {
-        font-size: 3.4rem;
+        font-size: 3.1rem;
         font-weight: 900;
         color: #F8FAFC;
-        letter-spacing: 1.2px;
+        letter-spacing: 1px;
         margin-bottom: 6px;
     }
     .header-banner {
@@ -156,45 +155,45 @@ st.markdown("""
         border: 1px solid #334155;
         border-left: 5px solid #E30613;
         border-radius: 12px;
-        padding: 16px 24px;
-        margin-bottom: 18px;
+        padding: 14px 22px;
+        margin-bottom: 16px;
         display: flex;
         align-items: center;
         justify-content: space-between;
         flex-wrap: wrap;
-        gap: 16px;
+        gap: 14px;
         box-shadow: 0 8px 25px rgba(0, 0, 0, 0.30);
     }
     .brand-tag {
-        font-size: 0.78rem;
+        font-size: 0.75rem;
         font-weight: 800;
         color: #E30613;
-        letter-spacing: 1.8px;
+        letter-spacing: 1.6px;
         text-transform: uppercase;
-        margin-bottom: 3px;
+        margin-bottom: 2px;
     }
     .main-title {
-        font-size: 1.72rem;
+        font-size: 1.52rem;
         font-weight: 900;
         color: #F8FAFC;
         margin: 0;
-        letter-spacing: 0.4px;
-        line-height: 1.15;
+        letter-spacing: 0.3px;
+        line-height: 1.2;
     }
     .main-subtitle {
-        font-size: 0.85rem;
+        font-size: 0.82rem;
         color: #94A3B8;
-        margin-top: 4px;
+        margin-top: 3px;
     }
     .author-badge {
         background: rgba(227, 6, 19, 0.12);
         border: 1px solid rgba(227, 6, 19, 0.45);
         border-radius: 10px;
-        padding: 10px 18px;
+        padding: 9px 16px;
         text-align: right;
         font-weight: 700;
         color: #F8FAFC;
-        font-size: 0.92rem;
+        font-size: 0.88rem;
     }
     .bag-showcase {
         background: #1E293B;
@@ -208,25 +207,25 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(0,0,0,0.25);
     }
     .predictor-main-title {
-        font-size: 1.15rem;
+        font-size: 1.05rem;
         font-weight: 800;
         color: #F8FAFC;
         text-transform: uppercase;
-        letter-spacing: 1px;
-        margin-top: 10px;
+        letter-spacing: 0.8px;
+        margin-top: 8px;
         margin-bottom: 4px;
     }
     .section-header {
-        font-size: 0.98rem;
+        font-size: 0.93rem;
         font-weight: 700;
         color: #E2E8F0;
         border-bottom: 1px solid #334155;
-        padding-bottom: 6px;
-        margin-top: 14px;
-        margin-bottom: 12px;
+        padding-bottom: 5px;
+        margin-top: 12px;
+        margin-bottom: 10px;
     }
     div[data-testid="stNumberInput"] label {
-        font-size: 0.80rem !important;
+        font-size: 0.79rem !important;
         font-weight: 600 !important;
         color: #CBD5E1 !important;
     }
@@ -236,15 +235,15 @@ st.markdown("""
         border: none;
         border-radius: 8px;
         font-weight: 700;
-        font-size: 1.04rem;
-        padding: 12px 20px;
+        font-size: 1.0rem;
+        padding: 11px 20px;
         box-shadow: 0 4px 15px rgba(227, 6, 19, 0.35);
     }
     .result-card {
         background: radial-gradient(circle at top, #1E293B 0%, #0F172A 100%);
         border: 1px solid #334155;
         border-radius: 12px;
-        padding: 24px;
+        padding: 22px;
         text-align: center;
         margin-top: 8px;
         display: flex;
@@ -254,37 +253,37 @@ st.markdown("""
         box-shadow: 0 8px 24px rgba(0,0,0,0.35);
     }
     .result-value {
-        font-size: 3.5rem;
+        font-size: 3.1rem;
         font-weight: 800;
         color: #F8FAFC;
         line-height: 1.05;
         margin: 4px 0;
     }
     .result-unit {
-        font-size: 1.25rem;
+        font-size: 1.15rem;
         color: #E30613;
         font-weight: 700;
     }
     .conformal-badge {
         display: inline-block;
-        margin-top: 12px;
-        padding: 6px 14px;
+        margin-top: 10px;
+        padding: 5px 14px;
         border-radius: 20px;
         background: rgba(14, 165, 233, 0.14);
         border: 1px solid rgba(14, 165, 233, 0.45);
         color: #E0F2FE;
-        font-size: 0.82rem;
+        font-size: 0.80rem;
         font-weight: 600;
     }
     .real-badge {
         display: inline-block;
-        margin-top: 10px;
-        padding: 5px 14px;
+        margin-top: 8px;
+        padding: 4px 12px;
         border-radius: 6px;
         background: rgba(16, 185, 129, 0.16);
         border: 1px solid rgba(16, 185, 129, 0.50);
         color: #ECFDF5;
-        font-size: 0.88rem;
+        font-size: 0.84rem;
         font-weight: 700;
     }
     .kpi-mini {
@@ -292,28 +291,53 @@ st.markdown("""
         border: 1px solid #334155;
         border-left: 4px solid #E30613;
         border-radius: 8px;
-        padding: 10px 14px;
+        padding: 9px 14px;
         margin-bottom: 8px;
     }
     .kpi-mini-title {
-        font-size: 0.72rem;
+        font-size: 0.71rem;
         color: #94A3B8;
         text-transform: uppercase;
         font-weight: 600;
+        letter-spacing: 0.4px;
     }
     .kpi-mini-val {
-        font-size: 1.2rem;
+        font-size: 1.18rem;
         font-weight: 800;
         color: #F8FAFC;
+        margin-top: 2px;
+    }
+    .metric-exec-card {
+        background: #1E293B;
+        border: 1px solid #334155;
+        border-top: 3px solid #E30613;
+        border-radius: 10px;
+        padding: 12px 16px;
+        text-align: center;
+        margin-bottom: 12px;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.22);
+    }
+    .metric-exec-title {
+        font-size: 0.74rem;
+        color: #94A3B8;
+        text-transform: uppercase;
+        font-weight: 700;
+        letter-spacing: 0.6px;
+    }
+    .metric-exec-val {
+        font-size: 1.32rem;
+        font-weight: 800;
+        color: #F8FAFC;
+        margin-top: 4px;
     }
     .footer-disclaimer {
         text-align: center;
         color: #94A3B8;
-        font-size: 0.79rem;
-        margin-top: 2.2rem;
-        padding-top: 1rem;
+        font-size: 0.78rem;
+        margin-top: 2.0rem;
+        padding-top: 0.9rem;
         border-top: 1px solid #1E293B;
-        line-height: 1.6;
+        line-height: 1.55;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -321,26 +345,26 @@ st.markdown("""
 # PANTALLA DE PRESENTACIÓN INICIAL (PAUSADA Y EJECUTIVA)
 if "splash_mostrado" not in st.session_state:
     placeholder = st.empty()
-    logo_html = f'<div><img src="{LOGO_URI}" style="max-height:82px; margin-bottom:10px;"></div>' if LOGO_URI else ''
+    logo_html = f'<div><img src="{LOGO_URI}" style="max-height:80px; margin-bottom:10px;"></div>' if LOGO_URI else ''
     bolsas_splash = "".join([
-        f'<img src="{uri}" style="height:78px; margin:0 12px; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,0.5);">'
+        f'<img src="{uri}" style="height:76px; margin:0 12px; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,0.5);">'
         for uri in BOLSAS_URI.values() if uri
     ])
-    div_bolsas_splash = f'<div style="margin: 18px 0;">{bolsas_splash}</div>' if bolsas_splash else ''
+    div_bolsas_splash = f'<div style="margin: 16px 0;">{bolsas_splash}</div>' if bolsas_splash else ''
 
     splash_html = (
         f'<div class="splash-box">'
         f'{logo_html}'
         f'<div class="splash-dcca">DIVISIÓN DE CONTROL DE CALIDAD ATOCONGO - DCCA</div>'
         f'<div class="splash-title">DCC<span style="color:#E30613;">AI</span></div>'
-        f'<div style="color:#E2E8F0; font-size:1.12rem; font-weight:600; margin-bottom:6px;">'
-        f'Arquitectura Pionera de Machine Learning para Ingeniería de Procesos y Predicción de Resistencia'
+        f'<div style="color:#E2E8F0; font-size:1.08rem; font-weight:600; margin-bottom:6px;">'
+        f'Inteligencia Artificial para Ingeniería de Procesos y Predicción de Resistencia'
         f'</div>'
-        f'<div style="color:#94A3B8; font-size:0.92rem; margin-bottom:14px;">'
+        f'<div style="color:#94A3B8; font-size:0.90rem; margin-bottom:14px;">'
         f'Control Predictivo en Tiempo Real &bull; Difracción de Rayos X (Rietveld) &bull; Fluorescencia XRF'
         f'</div>'
         f'{div_bolsas_splash}'
-        f'<div style="border-top:1px solid #334155; padding-top:16px; font-size:1.0rem; color:#F8FAFC;">'
+        f'<div style="border-top:1px solid #334155; padding-top:15px; font-size:0.96rem; color:#F8FAFC;">'
         f'Elaborado por Ing. CIP Marco Antonio Uriel Martínez Sánchez'
         f'</div>'
         f'</div>'
@@ -488,7 +512,7 @@ REPO_MODELOS = cargar_repositorio_modelos()
 
 
 # ==============================================================================
-# 4. LECTOR UNIVERSAL DE EXCEL Y MOTOR DE INFERENCIA INMUNE A VALUEERROR XGBOOST
+# 4. LECTOR UNIVERSAL DE EXCEL Y MOTOR DE INFERENCIA INMUNE A VALUEERROR
 # ==============================================================================
 def normalizar_nombre(texto):
     if texto is None or pd.isna(texto):
@@ -619,7 +643,6 @@ def limpiar_dataframe_lotes(df_raw, features_esperadas, defaults_cem, edad_selec
     return df_vista_final, df_modelo.reset_index(drop=True)
 
 def extraer_columnas_internas_modelo(modelo, features_fallback):
-    """Extrae los nombres exactos de columnas que espera internamente XGBoost, LightGBM o Sklearn."""
     for cand in [modelo, getattr(modelo, "model_", None)]:
         if cand is None:
             continue
@@ -665,23 +688,18 @@ def alinear_df_para_modelo(modelo, df_in, features_esperadas):
     return df_out
 
 def ejecutar_predict_seguro(modelo, df_in, features_esperadas):
-    """Garantiza predicción sin ValueError en XGBoost, LightGBM y Pipelines de distintas versiones."""
     reparar_compatibilidad_sklearn(modelo)
     df_aln = alinear_df_para_modelo(modelo, df_in, features_esperadas)
 
-    # 1. Intento con DataFrame alineado a los nombres exactos del modelo
     try:
         return np.asarray(modelo.predict(df_aln), dtype=float)
     except Exception:
         pass
-
-    # 2. Intento pasando matriz NumPy directa (evita validación de nombres en XGBoost/Sklearn)
     try:
         return np.asarray(modelo.predict(df_aln.to_numpy(dtype=float)), dtype=float)
     except Exception:
         pass
 
-    # 3. Respaldo directo al estimador final (bypass de SimpleImputer o validación de feature_names)
     X_arr = df_aln.to_numpy(dtype=float)
     est_final = modelo
     if hasattr(modelo, "steps"):
@@ -735,7 +753,7 @@ def obtener_importancia_variables(modelo, df_fila, features_esperadas):
 # ==============================================================================
 # 5. ENCABEZADO INSTITUCIONAL Y SELECTORES CON IMAGEN DE BOLSA DE CEMENTO
 # ==============================================================================
-logo_header_html = f'<img src="{LOGO_URI}" style="height:50px; margin-right:18px;">' if LOGO_URI else ''
+logo_header_html = f'<img src="{LOGO_URI}" style="height:48px; margin-right:16px;">' if LOGO_URI else ''
 
 header_html = (
     f'<div class="header-banner">'
@@ -743,7 +761,7 @@ header_html = (
     f'{logo_header_html}'
     f'<div>'
     f'<div class="brand-tag">DIVISIÓN DE CONTROL DE CALIDAD ATOCONGO - DCCA</div>'
-    f'<div class="main-title">DCC<span style="color:#E30613;">AI</span> &mdash; Inteligencia Artificial para Ingeniería de Procesos</div>'
+    f'<div class="main-title">DCC<span style="color:#E30613;">AI</span>: Inteligencia Artificial para Ingeniería de Procesos</div>'
     f'<div class="main-subtitle">Control Predictivo de Resistencia a la Compresión y Optimización Fisicoquímica en Tiempo Real</div>'
     f'</div>'
     f'</div>'
@@ -754,7 +772,7 @@ st.markdown(header_html, unsafe_allow_html=True)
 
 col_sel1, col_sel2, col_bag = st.columns([1.5, 1.5, 1.2])
 with col_sel1:
-    tipo_cemento_label = st.selectbox("Cemento", list(CONFIG_CEMENTOS.keys()), index=1)
+    tipo_cemento_label = st.selectbox("Cemento", list(CONFIG_CEMENTOS.keys()), index=0)
 with col_sel2:
     edad_label = st.selectbox(
         "Edad de Predicción",
@@ -763,7 +781,7 @@ with col_sel2:
             "3 días",
             "7 días",
             "28 días",
-            "Vista multi-edad completa (1, 3, 7 y 28 días)"
+            "Evolución multiedad (1, 3, 7 y 28 días)"
         ],
         index=3
     )
@@ -773,26 +791,26 @@ cod_cem = cfg["codigo"]
 
 with col_bag:
     bag_uri = BOLSAS_URI.get(cod_cem)
-    img_bag_top = f'<img src="{bag_uri}" style="height:58px; border-radius:4px;">' if bag_uri else ''
+    img_bag_top = f'<img src="{bag_uri}" style="height:56px; border-radius:4px;">' if bag_uri else ''
     st.markdown(
         f'<div class="bag-showcase">{img_bag_top}'
-        f'<div><div style="font-size:0.72rem; color:#E30613; font-weight:800; text-transform:uppercase;">{cfg["norma"]}</div>'
-        f'<div style="font-size:0.95rem; color:#F8FAFC; font-weight:800;">{cfg["marca"]}</div></div></div>',
+        f'<div><div style="font-size:0.71rem; color:#E30613; font-weight:800; text-transform:uppercase;">{cfg["norma"]}</div>'
+        f'<div style="font-size:0.94rem; color:#F8FAFC; font-weight:800;">{cfg["marca"]}</div></div></div>',
         unsafe_allow_html=True
     )
 
 
 # ==============================================================================
-# 6. PESTAÑAS EJECUTIVAS DE INGENIERÍA DE PROCESOS & MACHINE LEARNING
+# 6. PESTAÑAS EJECUTIVAS DE INGENIERÍA DE PROCESOS (ORTOGRAFÍA RAE)
 # ==============================================================================
 tab_sim, tab_batch, tab_spc = st.tabs([
-    "🎛️ Inferencia & Variables Predictoras",
-    "📂 Carga por Lotes & Métricas",
-    "📈 Diagnóstico de Residuales & Control Estadístico"
+    "🎛️ Inferencia y Variables Predictoras",
+    "📂 Carga por Lotes y Métricas",
+    "📈 Diagnóstico de Residuales y Control Estadístico"
 ])
 
 # ------------------------------------------------------------------------------
-# PESTAÑA 1: INFERENCIA & VARIABLES PREDICTORAS
+# PESTAÑA 1: INFERENCIA Y VARIABLES PREDICTORAS
 # ------------------------------------------------------------------------------
 with tab_sim:
     defaults = cfg["defaults"].copy()
@@ -820,7 +838,7 @@ with tab_sim:
                         valor_real_lote = int(round(float(val_r)))
 
     st.markdown(
-        f'<div class="predictor-main-title">Variables Predictoras &mdash; <span style="color:#E30613;">{cfg["marca"]}</span></div>',
+        f'<div class="predictor-main-title">Variables Predictoras: <span style="color:#E30613;">{cfg["marca"]}</span></div>',
         unsafe_allow_html=True
     )
 
@@ -901,6 +919,15 @@ with tab_sim:
     k3.markdown(f'<div class="kpi-mini"><div class="kpi-mini-title">Sulfatos Solubles</div><div class="kpi-mini-val">{sulf_solubles:.2f}%</div></div>', unsafe_allow_html=True)
     k4.markdown(f'<div class="kpi-mini"><div class="kpi-mini-title">Balance SO3 / (C3A+Álc)</div><div class="kpi-mini-val">{balance_so3:.2f}</div></div>', unsafe_allow_html=True)
 
+    # Selector de estilo visual cuando está en evolución multiedad
+    estilo_multiedad = "📈 Curva Cinética Continua"
+    if "multiedad" in edad_label:
+        estilo_multiedad = st.radio(
+            "Visualización de desarrollo de resistencia:",
+            ["📈 Curva Cinética Continua", "📊 Gráfico de Barras Comparativo"],
+            horizontal=True
+        )
+
     if st.button("Ejecutar Predicción", use_container_width=True):
         mapa_edad = {"1 día": "1d", "3 días": "3d", "7 días": "7d", "28 días": "28d"}
         edad_elegida = mapa_edad.get(edad_label, "MULTI")
@@ -920,12 +947,12 @@ with tab_sim:
                     desvio = abs(valor_real_lote - val_c)
                     html_real = f'<div><span class="real-badge">✔️ Valor Real: {valor_real_lote} kg/cm² (Error: {desvio} kg/cm²)</span></div>'
 
-                bag_card_html = f'<div style="margin-bottom:8px;"><img src="{bag_uri}" style="height:64px; border-radius:4px;"></div>' if bag_uri else ''
+                bag_card_html = f'<div style="margin-bottom:8px;"><img src="{bag_uri}" style="height:62px; border-radius:4px;"></div>' if bag_uri else ''
 
                 card_html = (
                     f'<div class="result-card">'
                     f'{bag_card_html}'
-                    f'<div style="font-size:0.82rem; color:#94A3B8; text-transform:uppercase; margin-bottom:6px;">'
+                    f'<div style="font-size:0.80rem; color:#94A3B8; text-transform:uppercase; margin-bottom:6px;">'
                     f'{tipo_cemento_label} &bull; {edad_label}'
                     f'</div>'
                     f'<div class="result-value">{val_c} <span class="result-unit">kg/cm²</span></div>'
@@ -953,7 +980,7 @@ with tab_sim:
                     fig_imp.update_layout(
                         title="Importancia de Variables Predictoras (Feature Importance)",
                         template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                        height=290, margin=dict(l=10, r=10, t=35, b=10),
+                        height=285, margin=dict(l=10, r=10, t=35, b=10),
                         xaxis_title="Peso Relativo en el Modelo (%)"
                     )
                     st.plotly_chart(fig_imp, use_container_width=True)
@@ -979,9 +1006,9 @@ with tab_sim:
                     preds_p90.append(vp90)
                     mini_card_html = (
                         f'<div class="result-card" style="padding:14px;">'
-                        f'<div style="font-size:0.78rem; color:#94A3B8;">{etiquetas_ed[idx].upper()}</div>'
-                        f'<div class="result-value" style="font-size:2.3rem;">{vc} <span class="result-unit" style="font-size:0.95rem;">kg/cm²</span></div>'
-                        f'<div style="font-size:0.74rem; color:#94A3B8; margin-top:4px;">P10–P90: [{vp10} – {vp90}]</div>'
+                        f'<div style="font-size:0.76rem; color:#94A3B8; font-weight:700;">{etiquetas_ed[idx].upper()}</div>'
+                        f'<div class="result-value" style="font-size:2.15rem;">{vc} <span class="result-unit" style="font-size:0.92rem;">kg/cm²</span></div>'
+                        f'<div style="font-size:0.73rem; color:#94A3B8; margin-top:4px;">P10–P90: [{vp10} – {vp90}]</div>'
                         f'</div>'
                     )
                     cols_cards[idx].markdown(mini_card_html, unsafe_allow_html=True)
@@ -992,38 +1019,58 @@ with tab_sim:
 
             if not all(np.isnan(preds_c)):
                 fig_curva = go.Figure()
-                fig_curva.add_trace(go.Scatter(
-                    x=dias_num + dias_num[::-1],
-                    y=preds_p90 + preds_p10[::-1],
-                    fill='toself', fillcolor='rgba(227, 6, 19, 0.20)',
-                    line=dict(color='rgba(255,255,255,0)'),
-                    name='Intervalo Conformal P10–P90',
-                    hoverinfo='skip'
-                ))
-                fig_curva.add_trace(go.Scatter(
-                    x=dias_num, y=preds_c, mode='lines+markers+text',
-                    line=dict(color='#E30613', width=3),
-                    marker=dict(size=10, color='#F8FAFC', line=dict(width=2, color='#E30613')),
-                    text=[f"{int(v)}" if not np.isnan(v) else "" for v in preds_c],
-                    textposition="top center", name='Evolución Predicha',
-                    hovertemplate="Edad: %{x} días<br>Predicción: %{y:.0f} kg/cm²<extra></extra>"
-                ))
-                fig_curva.update_layout(
-                    title=f"Curva Multi-Edad de Evolución de Resistencia — {tipo_cemento_label}",
-                    xaxis=dict(
-                        title="Edad de Ensayo",
-                        tickmode="array",
-                        tickvals=[1, 3, 7, 28],
-                        ticktext=["1 día", "3 días", "7 días", "28 días"]
-                    ),
-                    yaxis=dict(title="Resistencia (kg/cm²)", tickformat="d"),
-                    template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                    height=350
-                )
+                if "Curva" in estilo_multiedad:
+                    fig_curva.add_trace(go.Scatter(
+                        x=dias_num + dias_num[::-1],
+                        y=preds_p90 + preds_p10[::-1],
+                        fill='toself', fillcolor='rgba(227, 6, 19, 0.20)',
+                        line=dict(color='rgba(255,255,255,0)'),
+                        name='Intervalo Conformal P10–P90',
+                        hoverinfo='skip'
+                    ))
+                    fig_curva.add_trace(go.Scatter(
+                        x=dias_num, y=preds_c, mode='lines+markers+text',
+                        line=dict(color='#E30613', width=3),
+                        marker=dict(size=10, color='#F8FAFC', line=dict(width=2, color='#E30613')),
+                        text=[f"{int(v)}" if not np.isnan(v) else "" for v in preds_c],
+                        textposition="top center", name='Evolución Predicha',
+                        hovertemplate="Edad: %{x} días<br>Predicción: %{y:d} kg/cm²<extra></extra>"
+                    ))
+                    fig_curva.update_layout(
+                        title=f"Curva de Desarrollo de Resistencia (1, 3, 7 y 28 días): {cfg['marca']}",
+                        xaxis=dict(
+                            title="Edad de Ensayo",
+                            tickmode="array",
+                            tickvals=[1, 3, 7, 28],
+                            ticktext=["1 día", "3 días", "7 días", "28 días"]
+                        ),
+                        yaxis=dict(title="Resistencia (kg/cm²)", tickformat="d"),
+                        template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                        height=340
+                    )
+                else:
+                    err_sup = [p90 - c for c, p90 in zip(preds_c, preds_p90)]
+                    err_inf = [c - p10 for c, p10 in zip(preds_c, preds_p10)]
+                    fig_curva.add_trace(go.Bar(
+                        x=etiquetas_ed, y=preds_c,
+                        marker_color=['#334155', '#475569', '#B8000C', '#E30613'],
+                        text=[f"{int(v)} kg/cm²" for v in preds_c],
+                        textposition='outside',
+                        error_y=dict(type='data', symmetric=False, array=err_sup, arrayminus=err_inf, color='#F8FAFC', thickness=1.5),
+                        name='Resistencia Predicha',
+                        hovertemplate="Edad: %{x}<br>Predicción: %{y:d} kg/cm²<extra></extra>"
+                    ))
+                    fig_curva.update_layout(
+                        title=f"Desarrollo Comparativo de Resistencia por Edad (1, 3, 7 y 28 días): {cfg['marca']}",
+                        xaxis=dict(title="Edad de Ensayo"),
+                        yaxis=dict(title="Resistencia (kg/cm²)", tickformat="d", range=[0, max(preds_p90) * 1.15]),
+                        template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                        height=340
+                    )
                 st.plotly_chart(fig_curva, use_container_width=True)
 
 # ------------------------------------------------------------------------------
-# PESTAÑA 2: CARGA POR LOTES & MÉTRICAS (ENTEROS Y MÉTRICAS AL FINAL)
+# PESTAÑA 2: CARGA POR LOTES Y MÉTRICAS (3 KPIs COMPACTOS AL FINAL SIN LOTES)
 # ------------------------------------------------------------------------------
 with tab_batch:
     st.markdown("##### 📂 Carga por Lotes y Resultado de Métricas")
@@ -1060,13 +1107,11 @@ with tab_batch:
                 df_out.insert(0, f"{edad_batch}_PREDICTION", y_b_int)
 
                 mae_g, mape_g, rmse_g = None, None, None
-                n_reales, n_analisis = 0, len(df_out)
 
                 if target_col in df_out.columns:
                     y_real_b = pd.to_numeric(df_out[target_col], errors='coerce').round(0)
                     mask_b = y_real_b.notna()
                     n_reales = int(mask_b.sum())
-                    n_analisis = int((~mask_b).sum())
 
                     df_out["MAE"] = np.where(mask_b, np.abs(y_real_b - y_b_int), np.nan)
                     df_out["MAPE (%)"] = np.where(mask_b, np.round((df_out["MAE"] / y_real_b) * 100, 2), np.nan)
@@ -1082,17 +1127,28 @@ with tab_batch:
                         rmse_g = np.sqrt(mean_squared_error(y_r_valid, y_p_valid))
                         st.session_state["ultimo_df_validado"] = (df_out, y_r_valid, y_p_valid, fechas_valid, edad_batch)
 
-                # 1. Mostrar primero la tabla de datos
+                # 1. Tabla de datos limpia
                 st.dataframe(df_out, use_container_width=True, height=370)
 
-                # 2. Mostrar al final el resumen de MAE, MAPE, RMSE y Lotes
+                # 2. Resumen compacto y equilibrado al final (solo MAE, MAPE y RMSE)
                 if mae_g is not None:
-                    st.markdown('<div class="section-header">📊 Resumen Global de Métricas del Lote</div>', unsafe_allow_html=True)
-                    m1, m2, m3, m4 = st.columns(4)
-                    m1.metric("MAE Promedio", f"{mae_g:.2f} kg/cm²")
-                    m2.metric("MAPE Promedio", f"{mape_g:.2f}%")
-                    m3.metric("RMSE Global", f"{rmse_g:.2f} kg/cm²")
-                    m4.metric("Lotes Procesados", f"{n_reales} reales | {n_analisis} en análisis")
+                    st.markdown('<div class="section-header">📊 Resumen Estadístico de Desempeño del Modelo</div>', unsafe_allow_html=True)
+                    m1, m2, m3 = st.columns(3)
+                    m1.markdown(
+                        f'<div class="metric-exec-card"><div class="metric-exec-title">MAE Promedio</div>'
+                        f'<div class="metric-exec-val">{mae_g:.1f} kg/cm²</div></div>',
+                        unsafe_allow_html=True
+                    )
+                    m2.markdown(
+                        f'<div class="metric-exec-card"><div class="metric-exec-title">MAPE Promedio</div>'
+                        f'<div class="metric-exec-val">{mape_g:.2f}%</div></div>',
+                        unsafe_allow_html=True
+                    )
+                    m3.markdown(
+                        f'<div class="metric-exec-card"><div class="metric-exec-title">RMSE Global</div>'
+                        f'<div class="metric-exec-val">{rmse_g:.1f} kg/cm²</div></div>',
+                        unsafe_allow_html=True
+                    )
 
                 buffer = io.BytesIO()
                 with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
@@ -1122,7 +1178,6 @@ with tab_spc:
         y_p_int = np.round(y_p).astype(int)
         residuales_int = (y_p_int - y_r_int).astype(int)
 
-        # GRÁFICO 1 (NUEVO): EVOLUCIÓN TEMPORAL POR FECHA (X = Dato Real, Punto = Dato Predicho)
         fig_time = go.Figure()
         fig_time.add_trace(go.Scatter(
             x=fechas_v, y=y_r_int,
@@ -1145,11 +1200,10 @@ with tab_spc:
             yaxis=dict(title="Resistencia (kg/cm²)", tickformat="d"),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            height=360
+            height=350
         )
         st.plotly_chart(fig_time, use_container_width=True)
 
-        # GRÁFICOS 2 Y 3: PREDICCIÓN VS REAL (SIN LÍNEA ROJA) Y RESIDUALES ENTEROS
         g1, g2 = st.columns(2)
         with g1:
             fig_sc = go.Figure()
@@ -1165,7 +1219,7 @@ with tab_spc:
                 xaxis=dict(title="Valor Real (kg/cm²)", tickformat="d"),
                 yaxis=dict(title="Predicción DCCAI (kg/cm²)", tickformat="d"),
                 template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                height=340
+                height=330
             )
             st.plotly_chart(fig_sc, use_container_width=True)
 
@@ -1184,18 +1238,18 @@ with tab_spc:
                 xaxis=dict(title="Valor Real (kg/cm²)", tickformat="d"),
                 yaxis=dict(title="Residual (Predicho - Real) [kg/cm²]", tickformat="d"),
                 template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                height=340
+                height=330
             )
             st.plotly_chart(fig_res, use_container_width=True)
     else:
-        st.info("Carga un archivo en la pestaña **Carga por Lotes & Métricas** para visualizar el seguimiento temporal por fecha y el diagnóstico de residuales.")
+        st.info("Carga un archivo en la pestaña **Carga por Lotes y Métricas** para visualizar el seguimiento temporal por fecha y el diagnóstico de residuales.")
 
 # ==============================================================================
 # 7. PIE DE PÁGINA INSTITUCIONAL
 # ==============================================================================
 footer_html = (
     '<div class="footer-disclaimer">'
-    '<div><b>UNACEM &mdash; DIVISIÓN DE CONTROL DE CALIDAD ATOCONGO (DCCAI)</b> &nbsp;|&nbsp; '
+    '<div><b>UNACEM: DIVISIÓN DE CONTROL DE CALIDAD ATOCONGO (DCCAI)</b> &nbsp;|&nbsp; '
     'Elaborado por Ing. CIP Marco Antonio Uriel Martínez Sánchez</div>'
     '<div>Las estimaciones e intervalos conformales son herramientas de soporte operativo y pueden presentar variaciones de acuerdo al proceso.</div>'
     '</div>'
