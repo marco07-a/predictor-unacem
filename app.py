@@ -1319,7 +1319,7 @@ with tab_spc:
         st.info("Carga un archivo en la pestaña **Carga por Lotes y Métricas** para visualizar el seguimiento temporal por fecha y el diagnóstico de residuales.")
 
 # ------------------------------------------------------------------------------
-# PESTAÑA 4: APRENDIZAJE CONTINUO (AUTO-ACTUALIZACIÓN CON NUEVA DATA)
+# PESTAÑA 4: APRENDIZAJE CONTINUO (AUTOACTUALIZACIÓN CON NUEVA DATA)
 # ------------------------------------------------------------------------------
 with tab_mlops:
     st.markdown("##### 🔄 Motor de Aprendizaje Continuo y Reentrenamiento Dinámico")
