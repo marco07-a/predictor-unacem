@@ -10,8 +10,9 @@ import io
 import time
 import base64
 import unicodedata
-from sklearn.base import BaseEstimator, TransformerMixin, RegressorMixin
+from sklearn.base import BaseEstimator, TransformerMixin, RegressorMixin, clone
 from sklearn.impute import SimpleImputer
+from sklearn.model_selection import KFold
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
 # ==============================================================================
@@ -53,6 +54,30 @@ class CalibradorVarianzaConformal(BaseEstimator, RegressorMixin):
         self.gamma_stretch = gamma_stretch
         self.alpha_conformal = alpha_conformal
         self.cv = cv
+    def fit(self, X, y):
+        X_df = pd.DataFrame(X).reset_index(drop=True)
+        y_arr = np.asarray(y, dtype=float)
+        self.feature_names_in_ = list(X_df.columns)
+        kf = KFold(n_splits=self.cv, shuffle=True, random_state=1234)
+        oof_preds = np.zeros_like(y_arr)
+        for tr_idx, val_idx in kf.split(X_df):
+            est_c = clone(self.base_estimator)
+            est_c.fit(X_df.iloc[tr_idx], y_arr[tr_idx])
+            oof_preds[val_idx] = est_c.predict(X_df.iloc[val_idx])
+        self.mu_y_ = np.mean(y_arr)
+        self.std_y_ = np.std(y_arr) + 1e-6
+        self.mu_pred_ = np.mean(oof_preds)
+        self.std_pred_ = np.std(oof_preds) + 1e-6
+        ratio_std = np.clip(self.std_y_ / self.std_pred_, 1.0, 2.2)
+        self.factor_escala_ = 1.0 + self.gamma_stretch * (ratio_std - 1.0)
+        oof_cal = self.mu_y_ + self.factor_escala_ * (oof_preds - self.mu_pred_)
+        res_abs = np.abs(y_arr - oof_cal)
+        n = len(y_arr)
+        q_lvl = np.ceil((n + 1) * (1.0 - self.alpha_conformal)) / n
+        self.q_conformal_ = float(np.quantile(res_abs, min(q_lvl, 0.95)))
+        self.model_ = clone(self.base_estimator)
+        self.model_.fit(X_df, y_arr)
+        return self
     def predict(self, X):
         X_df = pd.DataFrame(X)
         raw_pred = self.model_.predict(X_df)
@@ -86,7 +111,7 @@ def reparar_compatibilidad_sklearn(obj):
 
 
 # ==============================================================================
-# 1. CONFIGURACIÓN DE PÁGINA Y ESTILOS CON PIE DE PÁGINA SIEMPRE FIJO ABAJO
+# 1. CONFIGURACIÓN DE PÁGINA Y ENCABEZADO SIMÉTRICO CENTRADO (3 COLUMNAS)
 # ==============================================================================
 st.set_page_config(
     page_title="DCCAI: Inteligencia Artificial para el Control de Calidad — UNACEM",
@@ -151,29 +176,46 @@ st.markdown("""
         margin-bottom: 6px;
     }
     .header-banner {
-        background: linear-gradient(90deg, #1E293B 0%, #0F172A 100%);
+        background: linear-gradient(90deg, #1E293B 0%, #0F172A 50%, #1E293B 100%);
         border: 1px solid #334155;
-        border-left: 5px solid #E30613;
+        border-top: 3px solid #E30613;
         border-radius: 12px;
-        padding: 14px 22px;
+        padding: 14px 24px;
         margin-bottom: 16px;
-        display: flex;
+        display: grid;
+        grid-template-columns: 1fr 2.4fr 1fr;
         align-items: center;
-        justify-content: space-between;
-        flex-wrap: wrap;
         gap: 14px;
         box-shadow: 0 8px 25px rgba(0, 0, 0, 0.30);
     }
+    @media (max-width: 992px) {
+        .header-banner {
+            grid-template-columns: 1fr;
+            text-align: center;
+        }
+    }
+    .header-left {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+    }
+    .header-center {
+        text-align: center;
+    }
+    .header-right {
+        display: flex;
+        justify-content: flex-end;
+    }
     .brand-tag {
-        font-size: 0.75rem;
+        font-size: 0.76rem;
         font-weight: 800;
         color: #E30613;
-        letter-spacing: 1.6px;
+        letter-spacing: 1.8px;
         text-transform: uppercase;
-        margin-bottom: 2px;
+        margin-bottom: 3px;
     }
     .main-title {
-        font-size: 1.52rem;
+        font-size: 1.56rem;
         font-weight: 900;
         color: #F8FAFC;
         margin: 0;
@@ -189,11 +231,12 @@ st.markdown("""
         background: rgba(227, 6, 19, 0.12);
         border: 1px solid rgba(227, 6, 19, 0.45);
         border-radius: 10px;
-        padding: 9px 16px;
-        text-align: right;
+        padding: 9px 15px;
+        text-align: center;
         font-weight: 700;
         color: #F8FAFC;
-        font-size: 0.88rem;
+        font-size: 0.85rem;
+        line-height: 1.3;
     }
     .bag-showcase {
         background: #1E293B;
@@ -348,7 +391,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# PANTALLA DE PRESENTACIÓN INICIAL (3.0 SEGUNDOS EXACTOS Y ENUMERACIÓN RAE)
+# PANTALLA DE PRESENTACIÓN INICIAL (3.0 SEGUNDOS EXACTOS)
 if "splash_mostrado" not in st.session_state:
     placeholder = st.empty()
     logo_html = f'<div><img src="{LOGO_URI}" style="max-height:80px; margin-bottom:10px;"></div>' if LOGO_URI else ''
@@ -474,15 +517,15 @@ MAPEO_BD_EXACTO = {
 
 
 # ==============================================================================
-# 3. CARGA DE MODELOS (.PKL)
+# 3. CARGA DE MODELOS (.PKL) Y SOPORTE DE ACTUALIZACIÓN DINÁMICA EN MEMORIA
 # ==============================================================================
 @st.cache_resource
 def cargar_repositorio_modelos():
     candidatos = {
         "GU": {
             "1d": ["modelo_GU_1d_produccion.pkl", "modelo_M35_1dia_produccion.pkl"],
-            "3d": ["modelo_GU_3d_produccion.pkl", "modelo_M35_3dias_produccion.pkl"],
-            "7d": ["modelo_GU_7d_produccion.pkl", "modelo_M35_7dias_produccion.pkl"],
+            "3d": ["modelo_GU_3d_produccion.pkl", "modelo_M34_3d_produccion.pkl", "modelo_M35_3dias_produccion.pkl"],
+            "7d": ["modelo_GU_7d_produccion.pkl", "modelo_M34_7d_produccion.pkl", "modelo_M35_7dias_produccion.pkl"],
             "28d": ["modelo_GU_28d_PRO_produccion.pkl", "modelo_GU_28d_produccion.pkl", "modelo_M34_28d_produccion.pkl"]
         },
         "TI": {
@@ -515,6 +558,13 @@ def cargar_repositorio_modelos():
     return repo
 
 REPO_MODELOS = cargar_repositorio_modelos()
+
+def obtener_modelo_activo(cod_cem, edad):
+    """Devuelve el modelo reentrenado dinámicamente en sesión si existe, o el .pkl base."""
+    clave_dyn = f"modelo_dinamico_{cod_cem}_{edad}"
+    if clave_dyn in st.session_state:
+        return st.session_state[clave_dyn]
+    return REPO_MODELOS[cod_cem][edad]
 
 
 # ==============================================================================
@@ -733,16 +783,26 @@ def predecir_con_modelo(modelo, df_features, features_esperadas, sigma_fallback=
         return y_hat, y_hat - q_80, y_hat + q_80
 
 def obtener_importancia_variables(modelo, df_fila, features_esperadas):
+    """Extrae importancias nativas en Árboles (.feature_importances_) y Lineales escalados (.coef_ en Ridge/ElasticNet)."""
     est = modelo.model_ if hasattr(modelo, "model_") else modelo
     if hasattr(est, "steps"):
         est = est.steps[-1][1]
 
+    # 1. Modelos basados en Árboles (LightGBM, XGBoost, RandomForest)
     if hasattr(est, "feature_importances_"):
         imp = np.asarray(est.feature_importances_, dtype=float)
         if len(imp) == len(features_esperadas) and imp.max() > 0:
             imp_pct = (imp / imp.sum()) * 100.0
             return pd.DataFrame({'Variable': features_esperadas, 'Importancia (%)': imp_pct})
 
+    # 2. Modelos Lineales Regularizados (Ridge 3d y ElasticNetCV 7d en GU)
+    if hasattr(est, "coef_"):
+        coefs = np.abs(np.asarray(est.coef_, dtype=float).ravel())
+        if len(coefs) == len(features_esperadas) and coefs.max() > 0:
+            imp_pct = (coefs / coefs.sum()) * 100.0
+            return pd.DataFrame({'Variable': features_esperadas, 'Importancia (%)': imp_pct})
+
+    # 3. Respaldo para Ensambles Stacking
     pred_0, _, _ = predecir_con_modelo(modelo, df_fila, features_esperadas)
     sens = []
     for col in features_esperadas:
@@ -757,21 +817,21 @@ def obtener_importancia_variables(modelo, df_fila, features_esperadas):
 
 
 # ==============================================================================
-# 5. ENCABEZADO INSTITUCIONAL Y SELECTORES CON IMAGEN DE BOLSA DE CEMENTO
+# 5. ENCABEZADO SIMÉTRICO CENTRADO (3 COLUMNAS) Y SELECTORES
 # ==============================================================================
-logo_header_html = f'<img src="{LOGO_URI}" style="height:48px; margin-right:16px;">' if LOGO_URI else ''
+logo_header_html = f'<img src="{LOGO_URI}" style="height:52px;">' if LOGO_URI else ''
 
 header_html = (
     f'<div class="header-banner">'
-    f'<div style="display:flex; align-items:center;">'
-    f'{logo_header_html}'
-    f'<div>'
+    f'<div class="header-left">{logo_header_html}</div>'
+    f'<div class="header-center">'
     f'<div class="brand-tag">DIVISIÓN DE CONTROL DE CALIDAD ATOCONGO - DCCA</div>'
     f'<div class="main-title">DCC<span style="color:#E30613;">AI</span>: Inteligencia Artificial para el Control de Calidad</div>'
     f'<div class="main-subtitle">Modelamiento Predictivo de Resistencia a la Compresión</div>'
     f'</div>'
+    f'<div class="header-right">'
+    f'<div class="author-badge">Elaborado por<br>Ing. CIP Marco Antonio Uriel Martínez Sánchez</div>'
     f'</div>'
-    f'<div class="author-badge">Elaborado por Ing. CIP Marco Antonio Uriel Martínez Sánchez</div>'
     f'</div>'
 )
 st.markdown(header_html, unsafe_allow_html=True)
@@ -807,12 +867,13 @@ with col_bag:
 
 
 # ==============================================================================
-# 6. PESTAÑAS EJECUTIVAS DE CONTROL DE CALIDAD (ORTOGRAFÍA RAE)
+# 6. PESTAÑAS EJECUTIVAS (INCLUYE APRENDIZAJE CONTINUO DINÁMICO)
 # ==============================================================================
-tab_sim, tab_batch, tab_spc = st.tabs([
+tab_sim, tab_batch, tab_spc, tab_mlops = st.tabs([
     "🎛️ Inferencia y Variables Predictoras",
     "📂 Carga por Lotes y Métricas",
-    "📈 Diagnóstico de Residuales y Control Estadístico"
+    "📈 Diagnóstico de Residuales y Control Estadístico",
+    "🔄 Aprendizaje Continuo (Auto-Actualización)"
 ])
 
 # ------------------------------------------------------------------------------
@@ -938,7 +999,7 @@ with tab_sim:
         edad_elegida = mapa_edad.get(edad_label, "MULTI")
 
         if edad_elegida != "MULTI":
-            mod_obj, _ = REPO_MODELOS[cod_cem][edad_elegida]
+            mod_obj, _ = obtener_modelo_activo(cod_cem, edad_elegida)
             sigma_fb = cfg["incertidumbre_base"][edad_elegida]
 
             if mod_obj is not None:
@@ -1003,7 +1064,7 @@ with tab_sim:
             cols_cards = st.columns(4)
 
             for idx, ed in enumerate(edades_seq):
-                mod_e, _ = REPO_MODELOS[cod_cem][ed]
+                mod_e, _ = obtener_modelo_activo(cod_cem, ed)
                 sigma_e = cfg["incertidumbre_base"][ed]
                 if mod_e is not None:
                     yp, l10, l90 = predecir_con_modelo(mod_e, df_input_single, features_activas, sigma_fallback=sigma_e)
@@ -1107,7 +1168,7 @@ with tab_batch:
             )
             st.session_state[f"lotes_{cod_cem}"] = (df_vista, df_mod)
 
-            mod_b, _ = REPO_MODELOS[cod_cem][edad_batch]
+            mod_b, _ = obtener_modelo_activo(cod_cem, edad_batch)
             if mod_b is not None and len(df_mod) > 0:
                 y_b, p10_b, p90_b = predecir_con_modelo(
                     mod_b, df_mod, cfg["features"], sigma_fallback=cfg["incertidumbre_base"][edad_batch]
@@ -1256,6 +1317,86 @@ with tab_spc:
             st.plotly_chart(fig_res, use_container_width=True)
     else:
         st.info("Carga un archivo en la pestaña **Carga por Lotes y Métricas** para visualizar el seguimiento temporal por fecha y el diagnóstico de residuales.")
+
+# ------------------------------------------------------------------------------
+# PESTAÑA 4: APRENDIZAJE CONTINUO (AUTO-ACTUALIZACIÓN CON NUEVA DATA)
+# ------------------------------------------------------------------------------
+with tab_mlops:
+    st.markdown("##### 🔄 Motor de Aprendizaje Continuo y Reentrenamiento Dinámico")
+    st.caption(
+        "Evita que el modelo se estanque cuando cambian los frentes de cantera o las campañas de clínker. "
+        "Sube la base de datos histórica actualizada para reentrenar la arquitectura ganadora con validación cruzada (5-Fold CV) y descargar el nuevo `.pkl`."
+    )
+
+    edad_retrain = st.selectbox("Edad a actualizar:", ["1d", "3d", "7d", "28d"], index=3)
+    target_retrain = f"{edad_retrain[:-1]}_d"
+
+    archivo_hist_nuevo = st.file_uploader(
+        f"Sube el Excel con la historia acumulada + nuevos lotes cerrados ({tipo_cemento_label} — {edad_retrain})",
+        type=["xlsx", "xls", "csv"],
+        key="uploader_mlops"
+    )
+
+    if archivo_hist_nuevo is not None:
+        df_raw_h = leer_excel_universal(archivo_hist_nuevo)
+        df_vista_h, df_mod_h = limpiar_dataframe_lotes(
+            df_raw_h, cfg["features"], cfg["defaults"], edad_seleccionada=edad_retrain
+        )
+
+        if target_retrain in df_vista_h.columns:
+            y_full = pd.to_numeric(df_vista_h[target_retrain], errors='coerce')
+            mask_ok = y_full.notna()
+            X_tr_new = df_mod_h.loc[mask_ok, cfg["features"]].reset_index(drop=True)
+            y_tr_new = y_full[mask_ok].reset_index(drop=True)
+
+            st.info(f"✔️ Base de datos validada: **{len(X_tr_new)} muestras con resistencia real** listas para aprendizaje continuo.")
+
+            if st.button("🚀 Ejecutar Reentrenamiento Dinámico y Validación 5-Fold CV", use_container_width=True):
+                mod_actual, ruta_act = obtener_modelo_activo(cod_cem, edad_retrain)
+                if mod_actual is not None:
+                    # Extraer arquitectura base preservando hiperparámetros anti-overfitting
+                    arq_base = clone(mod_actual.base_estimator if hasattr(mod_actual, "base_estimator") else mod_actual)
+                    X_aln_new = alinear_df_para_modelo(mod_actual, X_tr_new, cfg["features"])
+
+                    kf = KFold(n_splits=5, shuffle=True, random_state=1234)
+                    oof_new = np.zeros(len(y_tr_new))
+                    for idx_t, idx_v in kf.split(X_aln_new):
+                        m_fold = clone(arq_base)
+                        m_fold.fit(X_aln_new.iloc[idx_t], y_tr_new.iloc[idx_t])
+                        oof_new[idx_v] = m_fold.predict(X_aln_new.iloc[idx_v])
+
+                    mae_cv = mean_absolute_error(y_tr_new, oof_new)
+                    mape_cv = np.mean(np.abs((y_tr_new - oof_new) / y_tr_new)) * 100
+                    rmse_cv = np.sqrt(mean_squared_error(y_tr_new, oof_new))
+                    exactitud_cv = 100.0 - mape_cv
+
+                    # Ajustar con el 100% de la data actualizada
+                    modelo_actualizado = clone(arq_base)
+                    modelo_actualizado.fit(X_aln_new, y_tr_new)
+
+                    nombre_pkl_nuevo = ruta_act if ruta_act else f"modelo_{cod_cem}_{edad_retrain}_produccion.pkl"
+                    st.session_state[f"modelo_dinamico_{cod_cem}_{edad_retrain}"] = (modelo_actualizado, nombre_pkl_nuevo)
+
+                    st.success(f"✅ Modelo **{cod_cem} - {edad_retrain}** actualizado en memoria activa con {len(X_tr_new)} muestras.")
+                    c_m1, c_m2, c_m3, c_m4 = st.columns(4)
+                    c_m1.markdown(f'<div class="metric-exec-card"><div class="metric-exec-title">Exactitud 5-Fold CV</div><div class="metric-exec-val" style="color:#10B981;">{exactitud_cv:.2f}%</div></div>', unsafe_allow_html=True)
+                    c_m2.markdown(f'<div class="metric-exec-card"><div class="metric-exec-title">MAPE 5-Fold CV</div><div class="metric-exec-val">{mape_cv:.2f}%</div></div>', unsafe_allow_html=True)
+                    c_m3.markdown(f'<div class="metric-exec-card"><div class="metric-exec-title">MAE 5-Fold CV</div><div class="metric-exec-val">{mae_cv:.1f} kg/cm²</div></div>', unsafe_allow_html=True)
+                    c_m4.markdown(f'<div class="metric-exec-card"><div class="metric-exec-title">RMSE 5-Fold CV</div><div class="metric-exec-val">{rmse_cv:.1f} kg/cm²</div></div>', unsafe_allow_html=True)
+
+                    buf_pkl = io.BytesIO()
+                    joblib.dump(modelo_actualizado, buf_pkl)
+                    st.download_button(
+                        label=f"⬇️ Descargar Nuevo Modelo Entrenado ({nombre_pkl_nuevo})",
+                        data=buf_pkl.getvalue(),
+                        file_name=nombre_pkl_nuevo,
+                        mime="application/octet-stream",
+                        use_container_width=True
+                    )
+                else:
+                    st.error("No se encontró el modelo base para clonar su arquitectura.")
+        else:
+            st.warning(f"El archivo subido no contiene la columna objetivo `{target_retrain}` (`24 hrs`, `3 dias`, `7 d` o `28 días`).")
 
 # ==============================================================================
 # 7. PIE DE PÁGINA INSTITUCIONAL SIEMPRE FIJO ABAJO
