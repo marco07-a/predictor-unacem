@@ -86,10 +86,10 @@ def reparar_compatibilidad_sklearn(obj):
 
 
 # ==============================================================================
-# 1. CONFIGURACIÓN DE PÁGINA Y ESCALA TIPOGRÁFICA BALANCEADA
+# 1. CONFIGURACIÓN DE PÁGINA Y ESTILOS CON PIE DE PÁGINA SIEMPRE FIJO ABAJO
 # ==============================================================================
 st.set_page_config(
-    page_title="DCCAI: Inteligencia Artificial para el Control de Calidad | UNACEM",
+    page_title="DCCAI: Inteligencia Artificial para el Control de Calidad — UNACEM",
     page_icon="🏭",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -120,7 +120,7 @@ st.markdown("""
     }
     .block-container {
         padding-top: 2.2rem !important;
-        padding-bottom: 1.5rem !important;
+        padding-bottom: 5.0rem !important;
         max-width: 97% !important;
     }
     .splash-box {
@@ -128,7 +128,7 @@ st.markdown("""
         border: 1px solid #334155;
         border-top: 4px solid #E30613;
         border-radius: 18px;
-        padding: 50px 35px;
+        padding: 48px 35px;
         text-align: center;
         margin: 40px auto;
         max-width: 820px;
@@ -318,31 +318,37 @@ st.markdown("""
         box-shadow: 0 4px 14px rgba(0,0,0,0.22);
     }
     .metric-exec-title {
-        font-size: 0.74rem;
+        font-size: 0.73rem;
         color: #94A3B8;
         text-transform: uppercase;
         font-weight: 700;
-        letter-spacing: 0.6px;
+        letter-spacing: 0.5px;
     }
     .metric-exec-val {
-        font-size: 1.32rem;
+        font-size: 1.28rem;
         font-weight: 800;
         color: #F8FAFC;
         margin-top: 4px;
     }
     .footer-disclaimer {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background: rgba(15, 23, 42, 0.96);
+        backdrop-filter: blur(8px);
         text-align: center;
         color: #94A3B8;
-        font-size: 0.78rem;
-        margin-top: 2.0rem;
-        padding-top: 0.9rem;
+        font-size: 0.76rem;
+        padding: 8px 16px;
         border-top: 1px solid #1E293B;
-        line-height: 1.55;
+        z-index: 999;
+        line-height: 1.45;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# PANTALLA DE PRESENTACIÓN INICIAL (PAUSADA Y EJECUTIVA)
+# PANTALLA DE PRESENTACIÓN INICIAL (3.0 SEGUNDOS EXACTOS Y ENUMERACIÓN RAE)
 if "splash_mostrado" not in st.session_state:
     placeholder = st.empty()
     logo_html = f'<div><img src="{LOGO_URI}" style="max-height:80px; margin-bottom:10px;"></div>' if LOGO_URI else ''
@@ -373,9 +379,9 @@ if "splash_mostrado" not in st.session_state:
     with placeholder.container():
         st.markdown(splash_html, unsafe_allow_html=True)
         barra = st.progress(0, text="Inicializando arquitectura predictiva DCCAI...")
-        for pct in range(0, 101, 20):
-            time.sleep(0.80)
-            barra.progress(pct, text="Sincronizando modelos de Machine Learning (Sol • Apu • Andino)...")
+        for pct in range(0, 101, 25):
+            time.sleep(0.60)
+            barra.progress(pct, text="Sincronizando modelos de Machine Learning (Sol, Apu y Andino)...")
     placeholder.empty()
     st.session_state["splash_mostrado"] = True
 
@@ -821,10 +827,10 @@ with tab_sim:
         df_mem_vista, df_mem_mod = st.session_state[f"lotes_{cod_cem}"]
         if len(df_mem_vista) > 0:
             opciones_lote = ["Simulación interactiva libre"] + [
-                f"Lote {i+1} | Fecha: {df_mem_vista['Fecha'].iloc[i]}" if 'Fecha' in df_mem_vista.columns else f"Lote #{i+1}"
+                f"Muestra {i+1} — Fecha: {df_mem_vista['Fecha'].iloc[i]}" if 'Fecha' in df_mem_vista.columns else f"Muestra {i+1}"
                 for i in range(len(df_mem_vista))
             ]
-            lote_elegido = st.selectbox("🔍 Sincronizar variables y Valor Real desde un lote del Excel cargado:", opciones_lote)
+            lote_elegido = st.selectbox("🔍 Sincronizar variables y Valor Real desde una muestra del Excel cargado:", opciones_lote)
             if lote_elegido != "Simulación interactiva libre":
                 idx_lote = opciones_lote.index(lote_elegido) - 1
                 for f_col in features_activas:
@@ -968,13 +974,15 @@ with tab_sim:
 
                 with col_imp:
                     df_imp = obtener_importancia_variables(mod_obj, df_input_single, features_activas)
+                    df_imp['Importancia (%)'] = df_imp['Importancia (%)'].round(1)
                     df_imp = df_imp.sort_values('Importancia (%)', ascending=True).tail(8)
 
                     fig_imp = go.Figure(go.Bar(
                         x=df_imp['Importancia (%)'], y=df_imp['Variable'],
                         orientation='h', marker_color='#E30613',
                         text=[f"{v:.1f}%" for v in df_imp['Importancia (%)']],
-                        textposition='auto'
+                        textposition='auto',
+                        hovertemplate="Variable: %{y}<br>Peso relativo: %{x:.1f}%<extra></extra>"
                     ))
                     fig_imp.update_layout(
                         title="Sensibilidad en la Varianza Operativa (Feature Importance)",
@@ -984,7 +992,7 @@ with tab_sim:
                         height=275, margin=dict(l=10, r=10, t=35, b=10)
                     )
                     st.plotly_chart(fig_imp, use_container_width=True)
-                    st.caption("ℹ️ *Nota técnica: Refleja qué parámetros fisicoquímicos gobiernan las variaciones día a día dentro del rango operativo de planta.*")
+                    st.caption("ℹ️ *Nota técnica: Cuantifica el impacto de cada parámetro fisicoquímico sobre la variabilidad diaria dentro del rango operativo de planta.*")
             else:
                 st.error(f"No se encontró el modelo `.pkl` para **{cod_cem} - {edad_elegida}**.")
         else:
@@ -1072,7 +1080,7 @@ with tab_sim:
                 st.plotly_chart(fig_curva, use_container_width=True)
 
 # ------------------------------------------------------------------------------
-# PESTAÑA 2: CARGA POR LOTES Y MÉTRICAS (3 KPIs COMPACTOS AL FINAL)
+# PESTAÑA 2: CARGA POR LOTES Y MÉTRICAS (4 KPIs EJECUTIVOS CON EXACTITUD %)
 # ------------------------------------------------------------------------------
 with tab_batch:
     st.markdown("##### 📂 Carga por Lotes y Resultado de Métricas")
@@ -1108,7 +1116,7 @@ with tab_batch:
                 df_out = df_vista.copy()
                 df_out.insert(0, f"{edad_batch}_PREDICTION", y_b_int)
 
-                mae_g, mape_g, rmse_g = None, None, None
+                mae_g, mape_g, rmse_g, exactitud_g = None, None, None, None
 
                 if target_col in df_out.columns:
                     y_real_b = pd.to_numeric(df_out[target_col], errors='coerce').round(0)
@@ -1127,16 +1135,17 @@ with tab_batch:
                         mae_g = mean_absolute_error(y_r_valid, y_p_valid)
                         mape_g = np.mean(np.abs((y_r_valid - y_p_valid) / y_r_valid)) * 100
                         rmse_g = np.sqrt(mean_squared_error(y_r_valid, y_p_valid))
+                        exactitud_g = max(0.0, 100.0 - mape_g)
                         st.session_state["ultimo_df_validado"] = (df_out, y_r_valid, y_p_valid, fechas_valid, edad_batch)
 
-                st.dataframe(df_out, use_container_width=True, height=370)
+                st.dataframe(df_out, use_container_width=True, height=360)
 
                 if mae_g is not None:
                     st.markdown('<div class="section-header">📊 Resumen Estadístico de Desempeño del Modelo</div>', unsafe_allow_html=True)
-                    m1, m2, m3 = st.columns(3)
+                    m1, m2, m3, m4 = st.columns(4)
                     m1.markdown(
-                        f'<div class="metric-exec-card"><div class="metric-exec-title">MAE Promedio</div>'
-                        f'<div class="metric-exec-val">{mae_g:.1f} kg/cm²</div></div>',
+                        f'<div class="metric-exec-card"><div class="metric-exec-title">Exactitud Predictiva Media</div>'
+                        f'<div class="metric-exec-val" style="color:#10B981;">{exactitud_g:.2f}%</div></div>',
                         unsafe_allow_html=True
                     )
                     m2.markdown(
@@ -1145,6 +1154,11 @@ with tab_batch:
                         unsafe_allow_html=True
                     )
                     m3.markdown(
+                        f'<div class="metric-exec-card"><div class="metric-exec-title">MAE Promedio</div>'
+                        f'<div class="metric-exec-val">{mae_g:.1f} kg/cm²</div></div>',
+                        unsafe_allow_html=True
+                    )
+                    m4.markdown(
                         f'<div class="metric-exec-card"><div class="metric-exec-title">RMSE Global</div>'
                         f'<div class="metric-exec-val">{rmse_g:.1f} kg/cm²</div></div>',
                         unsafe_allow_html=True
@@ -1178,7 +1192,6 @@ with tab_spc:
         y_p_int = np.round(y_p).astype(int)
         residuales_int = (y_p_int - y_r_int).astype(int)
 
-        # GRÁFICO 1: SEGUIMIENTO TEMPORAL LIMPIO (SIN LÍNEAS HORIZONTALES DE FONDO)
         fig_time = go.Figure()
         fig_time.add_trace(go.Scatter(
             x=fechas_v, y=y_r_int,
@@ -1204,7 +1217,6 @@ with tab_spc:
         )
         st.plotly_chart(fig_time, use_container_width=True)
 
-        # GRÁFICOS 2 Y 3: PREDICCIÓN VS REAL Y RESIDUALES (SIN CUADRÍCULA DE FONDO)
         g1, g2 = st.columns(2)
         with g1:
             fig_sc = go.Figure()
@@ -1246,11 +1258,11 @@ with tab_spc:
         st.info("Carga un archivo en la pestaña **Carga por Lotes y Métricas** para visualizar el seguimiento temporal por fecha y el diagnóstico de residuales.")
 
 # ==============================================================================
-# 7. PIE DE PÁGINA INSTITUCIONAL
+# 7. PIE DE PÁGINA INSTITUCIONAL SIEMPRE FIJO ABAJO
 # ==============================================================================
 footer_html = (
     '<div class="footer-disclaimer">'
-    '<div><b>UNACEM: DIVISIÓN DE CONTROL DE CALIDAD ATOCONGO (DCCAI)</b> &nbsp;|&nbsp; '
+    '<div><b>UNACEM &mdash; División de Control de Calidad Atocongo (DCCA)</b> &bull; Sistema DCCAI &bull; '
     'Elaborado por Ing. CIP Marco Antonio Uriel Martínez Sánchez</div>'
     '<div>Las estimaciones e intervalos conformales son herramientas de soporte operativo y pueden presentar variaciones de acuerdo al proceso.</div>'
     '</div>'
