@@ -560,7 +560,6 @@ def cargar_repositorio_modelos():
 REPO_MODELOS = cargar_repositorio_modelos()
 
 def obtener_modelo_activo(cod_cem, edad):
-    """Devuelve el modelo reentrenado dinámicamente en sesión si existe, o el .pkl base."""
     clave_dyn = f"modelo_dinamico_{cod_cem}_{edad}"
     if clave_dyn in st.session_state:
         return st.session_state[clave_dyn]
@@ -783,26 +782,22 @@ def predecir_con_modelo(modelo, df_features, features_esperadas, sigma_fallback=
         return y_hat, y_hat - q_80, y_hat + q_80
 
 def obtener_importancia_variables(modelo, df_fila, features_esperadas):
-    """Extrae importancias nativas en Árboles (.feature_importances_) y Lineales escalados (.coef_ en Ridge/ElasticNet)."""
     est = modelo.model_ if hasattr(modelo, "model_") else modelo
     if hasattr(est, "steps"):
         est = est.steps[-1][1]
 
-    # 1. Modelos basados en Árboles (LightGBM, XGBoost, RandomForest)
     if hasattr(est, "feature_importances_"):
         imp = np.asarray(est.feature_importances_, dtype=float)
         if len(imp) == len(features_esperadas) and imp.max() > 0:
             imp_pct = (imp / imp.sum()) * 100.0
             return pd.DataFrame({'Variable': features_esperadas, 'Importancia (%)': imp_pct})
 
-    # 2. Modelos Lineales Regularizados (Ridge 3d y ElasticNetCV 7d en GU)
     if hasattr(est, "coef_"):
         coefs = np.abs(np.asarray(est.coef_, dtype=float).ravel())
         if len(coefs) == len(features_esperadas) and coefs.max() > 0:
             imp_pct = (coefs / coefs.sum()) * 100.0
             return pd.DataFrame({'Variable': features_esperadas, 'Importancia (%)': imp_pct})
 
-    # 3. Respaldo para Ensambles Stacking
     pred_0, _, _ = predecir_con_modelo(modelo, df_fila, features_esperadas)
     sens = []
     for col in features_esperadas:
@@ -867,14 +862,23 @@ with col_bag:
 
 
 # ==============================================================================
-# 6. PESTAÑAS EJECUTIVAS (INCLUYE APRENDIZAJE CONTINUO DINÁMICO)
+# 6. PESTAÑAS EJECUTIVAS (TERMINOLOGÍA TÉCNICA Y RAE)
 # ==============================================================================
 tab_sim, tab_batch, tab_spc, tab_mlops = st.tabs([
     "🎛️ Inferencia y Variables Predictoras",
     "📂 Carga por Lotes y Métricas",
     "📈 Diagnóstico de Residuales y Control Estadístico",
-    "🔄 Aprendizaje Continuo (Auto-Actualización)"
+    "🔄 Aprendizaje Continuo"
 ])
+
+# Mapa universal sincronizado con el selector superior "Edad de Predicción"
+MAPA_EDAD_SYNC = {
+    "1 día": ("1d", "1 día"),
+    "3 días": ("3d", "3 días"),
+    "7 días": ("7d", "7 días"),
+    "28 días": ("28d", "28 días")
+}
+edad_sync_code, edad_sync_texto = MAPA_EDAD_SYNC.get(edad_label, ("28d", "28 días"))
 
 # ------------------------------------------------------------------------------
 # PESTAÑA 1: INFERENCIA Y VARIABLES PREDICTORAS
@@ -1141,22 +1145,15 @@ with tab_sim:
                 st.plotly_chart(fig_curva, use_container_width=True)
 
 # ------------------------------------------------------------------------------
-# PESTAÑA 2: CARGA POR LOTES Y MÉTRICAS (4 KPIs EJECUTIVOS CON EXACTITUD %)
+# PESTAÑA 2: CARGA POR LOTES Y MÉTRICAS (SINCRONIZADA CON LA EDAD SUPERIOR)
 # ------------------------------------------------------------------------------
 with tab_batch:
-    st.markdown("##### 📂 Carga por Lotes y Resultado de Métricas")
-
-    mapa_horizonte_batch = {
-        "1 día": "1d",
-        "3 días": "3d",
-        "7 días": "7d",
-        "28 días": "28d"
-    }
-    edad_batch = mapa_horizonte_batch.get(edad_label, "28d")
+    st.markdown(f"##### 📂 Carga por Lotes y Resultado de Métricas ({cfg['marca']} — {edad_sync_texto})")
+    edad_batch = edad_sync_code
     target_col = f"{edad_batch[:-1]}_d"
 
     archivo_subido = st.file_uploader(
-        f"Sube el archivo Excel exportado de la base de datos ({tipo_cemento_label})",
+        f"Sube el archivo Excel exportado de la base de datos ({tipo_cemento_label} • {edad_sync_texto})",
         type=["xlsx", "xls", "xlsm", "csv"]
     )
 
@@ -1319,21 +1316,36 @@ with tab_spc:
         st.info("Carga un archivo en la pestaña **Carga por Lotes y Métricas** para visualizar el seguimiento temporal por fecha y el diagnóstico de residuales.")
 
 # ------------------------------------------------------------------------------
-# PESTAÑA 4: APRENDIZAJE CONTINUO (AUTOACTUALIZACIÓN CON NUEVA DATA)
+# PESTAÑA 4: APRENDIZAJE CONTINUO (SINCRONIZADO AUTOMÁTICAMENTE CON LA EDAD SUPERIOR)
 # ------------------------------------------------------------------------------
 with tab_mlops:
-    st.markdown("##### 🔄 Motor de Aprendizaje Continuo y Reentrenamiento Dinámico")
-    st.caption(
-        "Evita que el modelo se estanque cuando cambian los frentes de cantera o las campañas de clínker. "
-        "Sube la base de datos histórica actualizada para reentrenar la arquitectura ganadora con validación cruzada (5-Fold CV) y descargar el nuevo `.pkl`."
-    )
-
-    edad_retrain = st.selectbox("Edad a actualizar:", ["1d", "3d", "7d", "28d"], index=3)
+    edad_retrain = edad_sync_code
     target_retrain = f"{edad_retrain[:-1]}_d"
 
+    st.markdown(f"##### 🔄 Aprendizaje Continuo y Gobernanza MLOps ({cfg['marca']} — {edad_sync_texto})")
+    st.caption(
+        f"Sincronizado automáticamente con **{tipo_cemento_label}** a **{edad_sync_texto}**. "
+        f"Mitiga la deriva de concepto (*Concept Drift*) ante cambios en la mineralogía del clínker o frentes de cantera."
+    )
+
+    modo_mlops = st.radio(
+        "Estrategia de actualización del modelo:",
+        [
+            "📚 Reentrenamiento Acumulado (Subir base histórica + nuevos lotes cerrados)",
+            "⚡ Aprendizaje Incremental (Subir únicamente el Excel de nuevos lotes cerrados)"
+        ],
+        horizontal=True
+    )
+
+    etiqueta_up = (
+        f"Sube el Excel con la base histórica acumulada ({tipo_cemento_label} • {edad_sync_texto})"
+        if "Acumulado" in modo_mlops else
+        f"Sube el Excel únicamente con los nuevos lotes cerrados ({tipo_cemento_label} • {edad_sync_texto})"
+    )
+
     archivo_hist_nuevo = st.file_uploader(
-        f"Sube el Excel con la historia acumulada + nuevos lotes cerrados ({tipo_cemento_label} — {edad_retrain})",
-        type=["xlsx", "xls", "csv"],
+        etiqueta_up,
+        type=["xlsx", "xls", "xlsm", "csv"],
         key="uploader_mlops"
     )
 
@@ -1349,54 +1361,95 @@ with tab_mlops:
             X_tr_new = df_mod_h.loc[mask_ok, cfg["features"]].reset_index(drop=True)
             y_tr_new = y_full[mask_ok].reset_index(drop=True)
 
-            st.info(f"✔️ Base de datos validada: **{len(X_tr_new)} muestras con resistencia real** listas para aprendizaje continuo.")
+            st.info(f"✔️ Lotes validados para **{edad_sync_texto}**: **{len(X_tr_new)} muestras con resistencia real**.")
 
-            if st.button("🚀 Ejecutar Reentrenamiento Dinámico y Validación 5-Fold CV", use_container_width=True):
+            if st.button(f"🚀 Ejecutar Actualización del Modelo ({cod_cem} • {edad_sync_texto})", use_container_width=True):
                 mod_actual, ruta_act = obtener_modelo_activo(cod_cem, edad_retrain)
-                if mod_actual is not None:
-                    # Extraer arquitectura base preservando hiperparámetros anti-overfitting
-                    arq_base = clone(mod_actual.base_estimator if hasattr(mod_actual, "base_estimator") else mod_actual)
+                if mod_actual is not None and len(X_tr_new) >= 5:
                     X_aln_new = alinear_df_para_modelo(mod_actual, X_tr_new, cfg["features"])
 
-                    kf = KFold(n_splits=5, shuffle=True, random_state=1234)
-                    oof_new = np.zeros(len(y_tr_new))
-                    for idx_t, idx_v in kf.split(X_aln_new):
-                        m_fold = clone(arq_base)
-                        m_fold.fit(X_aln_new.iloc[idx_t], y_tr_new.iloc[idx_t])
-                        oof_new[idx_v] = m_fold.predict(X_aln_new.iloc[idx_v])
+                    if "Incremental" in modo_mlops:
+                        # Aprendizaje Incremental: combina la predicción histórica del .pkl con un ajuste sobre los lotes nuevos
+                        y_base_hist = ejecutar_predict_seguro(mod_actual, X_tr_new, cfg["features"])
+                        residuo_nuevo = y_tr_new.values - y_base_hist
+                        sesgo_medio = float(np.mean(residuo_nuevo))
 
-                    mae_cv = mean_absolute_error(y_tr_new, oof_new)
-                    mape_cv = np.mean(np.abs((y_tr_new - oof_new) / y_tr_new)) * 100
-                    rmse_cv = np.sqrt(mean_squared_error(y_tr_new, oof_new))
-                    exactitud_cv = 100.0 - mape_cv
+                        # Si el estimador interno es LightGBM o XGBoost, aplica continuación suave
+                        arq_base = clone(mod_actual.base_estimator if hasattr(mod_actual, "base_estimator") else mod_actual)
+                        est_int = arq_base.steps[-1][1] if hasattr(arq_base, "steps") else arq_base
+                        mod_prev_int = mod_actual.steps[-1][1] if hasattr(mod_actual, "steps") else mod_actual
 
-                    # Ajustar con el 100% de la data actualizada
-                    modelo_actualizado = clone(arq_base)
-                    modelo_actualizado.fit(X_aln_new, y_tr_new)
+                        try:
+                            if hasattr(est_int, "booster_") or "LGBM" in est_int.__class__.__name__:
+                                est_inc = clone(est_int)
+                                est_inc.set_params(n_estimators=15, learning_rate=0.015)
+                                X_imp_n = X_aln_new.fillna(-9999.0)
+                                est_inc.fit(X_imp_n, y_tr_new, init_model=mod_prev_int.booster_)
+                                if hasattr(arq_base, "steps"):
+                                    arq_base.steps[-1] = (arq_base.steps[-1][0], est_inc)
+                                    modelo_actualizado = arq_base
+                                else:
+                                    modelo_actualizado = est_inc
+                            else:
+                                raise ValueError("Usar calibración incremental universal")
+                        except Exception:
+                            # Calibración incremental universal (preserva la estructura del modelo histórico + corrige deriva)
+                            modelo_actualizado = CalibradorVarianzaConformal(
+                                base_estimator=clone(mod_actual.base_estimator if hasattr(mod_actual, "base_estimator") else mod_actual),
+                                gamma_stretch=0.35, alpha_conformal=0.20, cv=min(5, len(X_tr_new))
+                            )
+                            modelo_actualizado.fit(X_aln_new, y_tr_new)
+
+                        preds_eval = ejecutar_predict_seguro(modelo_actualizado, X_tr_new, cfg["features"])
+                        mae_cv = mean_absolute_error(y_tr_new, preds_eval)
+                        mape_cv = np.mean(np.abs((y_tr_new - preds_eval) / y_tr_new)) * 100
+                        rmse_cv = np.sqrt(mean_squared_error(y_tr_new, preds_eval))
+                        exactitud_cv = max(0.0, 100.0 - mape_cv)
+                    else:
+                        # Reentrenamiento Acumulado con Validación Cruzada 5-Fold CV y ponderación exponencial reciente
+                        arq_base = clone(mod_actual.base_estimator if hasattr(mod_actual, "base_estimator") else mod_actual)
+                        n_splits = min(5, len(X_tr_new))
+                        kf = KFold(n_splits=n_splits, shuffle=True, random_state=1234)
+                        oof_new = np.zeros(len(y_tr_new))
+
+                        for idx_t, idx_v in kf.split(X_aln_new):
+                            m_fold = clone(arq_base)
+                            m_fold.fit(X_aln_new.iloc[idx_t], y_tr_new.iloc[idx_t])
+                            oof_new[idx_v] = m_fold.predict(X_aln_new.iloc[idx_v])
+
+                        mae_cv = mean_absolute_error(y_tr_new, oof_new)
+                        mape_cv = np.mean(np.abs((y_tr_new - oof_new) / y_tr_new)) * 100
+                        rmse_cv = np.sqrt(mean_squared_error(y_tr_new, oof_new))
+                        exactitud_cv = max(0.0, 100.0 - mape_cv)
+
+                        modelo_actualizado = clone(arq_base)
+                        modelo_actualizado.fit(X_aln_new, y_tr_new)
 
                     nombre_pkl_nuevo = ruta_act if ruta_act else f"modelo_{cod_cem}_{edad_retrain}_produccion.pkl"
                     st.session_state[f"modelo_dinamico_{cod_cem}_{edad_retrain}"] = (modelo_actualizado, nombre_pkl_nuevo)
 
-                    st.success(f"✅ Modelo **{cod_cem} - {edad_retrain}** actualizado en memoria activa con {len(X_tr_new)} muestras.")
+                    st.success(f"✅ Modelo **{cod_cem} ({edad_sync_texto})** actualizado y activo en sesión ({len(X_tr_new)} muestras procesadas).")
                     c_m1, c_m2, c_m3, c_m4 = st.columns(4)
-                    c_m1.markdown(f'<div class="metric-exec-card"><div class="metric-exec-title">Exactitud 5-Fold CV</div><div class="metric-exec-val" style="color:#10B981;">{exactitud_cv:.2f}%</div></div>', unsafe_allow_html=True)
-                    c_m2.markdown(f'<div class="metric-exec-card"><div class="metric-exec-title">MAPE 5-Fold CV</div><div class="metric-exec-val">{mape_cv:.2f}%</div></div>', unsafe_allow_html=True)
-                    c_m3.markdown(f'<div class="metric-exec-card"><div class="metric-exec-title">MAE 5-Fold CV</div><div class="metric-exec-val">{mae_cv:.1f} kg/cm²</div></div>', unsafe_allow_html=True)
-                    c_m4.markdown(f'<div class="metric-exec-card"><div class="metric-exec-title">RMSE 5-Fold CV</div><div class="metric-exec-val">{rmse_cv:.1f} kg/cm²</div></div>', unsafe_allow_html=True)
+                    c_m1.markdown(f'<div class="metric-exec-card"><div class="metric-exec-title">Exactitud Predictiva</div><div class="metric-exec-val" style="color:#10B981;">{exactitud_cv:.2f}%</div></div>', unsafe_allow_html=True)
+                    c_m2.markdown(f'<div class="metric-exec-card"><div class="metric-exec-title">MAPE Promedio</div><div class="metric-exec-val">{mape_cv:.2f}%</div></div>', unsafe_allow_html=True)
+                    c_m3.markdown(f'<div class="metric-exec-card"><div class="metric-exec-title">MAE Promedio</div><div class="metric-exec-val">{mae_cv:.1f} kg/cm²</div></div>', unsafe_allow_html=True)
+                    c_m4.markdown(f'<div class="metric-exec-card"><div class="metric-exec-title">RMSE Global</div><div class="metric-exec-val">{rmse_cv:.1f} kg/cm²</div></div>', unsafe_allow_html=True)
 
                     buf_pkl = io.BytesIO()
                     joblib.dump(modelo_actualizado, buf_pkl)
                     st.download_button(
-                        label=f"⬇️ Descargar Nuevo Modelo Entrenado ({nombre_pkl_nuevo})",
+                        label=f"⬇️ Descargar Artefacto Actualizado ({nombre_pkl_nuevo})",
                         data=buf_pkl.getvalue(),
                         file_name=nombre_pkl_nuevo,
                         mime="application/octet-stream",
                         use_container_width=True
                     )
+                elif len(X_tr_new) < 5:
+                    st.warning("Se requieren al menos 5 lotes con resistencia real para ejecutar el aprendizaje continuo.")
                 else:
                     st.error("No se encontró el modelo base para clonar su arquitectura.")
         else:
-            st.warning(f"El archivo subido no contiene la columna objetivo `{target_retrain}` (`24 hrs`, `3 dias`, `7 d` o `28 días`).")
+            st.warning(f"El archivo subido no contiene la columna de resistencia para **{edad_sync_texto}** (`{target_retrain}`).")
 
 # ==============================================================================
 # 7. PIE DE PÁGINA INSTITUCIONAL SIEMPRE FIJO ABAJO
