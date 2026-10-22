@@ -786,18 +786,28 @@ def obtener_importancia_variables(modelo, df_fila, features_esperadas):
     if hasattr(est, "steps"):
         est = est.steps[-1][1]
 
+    n_vars = len(features_esperadas)
+
+    # 1. Modelos de Árboles y GA2M (LightGBM, XGBoost, RandomForest)
     if hasattr(est, "feature_importances_"):
         imp = np.asarray(est.feature_importances_, dtype=float)
-        if len(imp) == len(features_esperadas) and imp.max() > 0:
+        if len(imp) == n_vars and imp.max() > 0:
             imp_pct = (imp / imp.sum()) * 100.0
             return pd.DataFrame({'Variable': features_esperadas, 'Importancia (%)': imp_pct})
 
+    # 2. Modelos Ridge / ElasticNet (simples o con rama dual Standardize + Smooth Ridit)
     if hasattr(est, "coef_"):
         coefs = np.abs(np.asarray(est.coef_, dtype=float).ravel())
-        if len(coefs) == len(features_esperadas) and coefs.max() > 0:
+        if len(coefs) == n_vars and coefs.max() > 0:
             imp_pct = (coefs / coefs.sum()) * 100.0
             return pd.DataFrame({'Variable': features_esperadas, 'Importancia (%)': imp_pct})
+        elif len(coefs) == 2 * n_vars and coefs.max() > 0:
+            # Suma el impacto de la rama Standardize + la rama Smooth Ridit por cada variable
+            coefs_combinados = coefs[:n_vars] + coefs[n_vars:2 * n_vars]
+            imp_pct = (coefs_combinados / coefs_combinados.sum()) * 100.0
+            return pd.DataFrame({'Variable': features_esperadas, 'Importancia (%)': imp_pct})
 
+    # 3. Respaldo por sensibilidad marginal
     pred_0, _, _ = predecir_con_modelo(modelo, df_fila, features_esperadas)
     sens = []
     for col in features_esperadas:
@@ -809,8 +819,7 @@ def obtener_importancia_variables(modelo, df_fila, features_esperadas):
     sens = np.asarray(sens)
     imp_pct = (sens / sens.sum()) * 100.0
     return pd.DataFrame({'Variable': features_esperadas, 'Importancia (%)': imp_pct})
-
-
+    
 # ==============================================================================
 # 5. ENCABEZADO SIMÉTRICO CENTRADO (3 COLUMNAS) Y SELECTORES
 # ==============================================================================
