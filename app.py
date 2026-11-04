@@ -49,7 +49,7 @@ class IngenieriaQuimicaCemento(BaseEstimator, TransformerMixin):
         return df
 
 class CalibradorVarianzaConformal(BaseEstimator, RegressorMixin):
-    def __init__(self, base_estimator=None, gamma_stretch=0.70, alpha_conformal=0.20, cv=5):
+    def __init__(self, base_estimator=None, gamma_stretch=0.0, alpha_conformal=0.20, cv=5):
         self.base_estimator = base_estimator
         self.gamma_stretch = gamma_stretch
         self.alpha_conformal = alpha_conformal
@@ -64,12 +64,12 @@ class CalibradorVarianzaConformal(BaseEstimator, RegressorMixin):
             est_c = clone(self.base_estimator)
             est_c.fit(X_df.iloc[tr_idx], y_arr[tr_idx])
             oof_preds[val_idx] = est_c.predict(X_df.iloc[val_idx])
-        self.mu_y_ = np.mean(y_arr)
-        self.std_y_ = np.std(y_arr) + 1e-6
-        self.mu_pred_ = np.mean(oof_preds)
-        self.std_pred_ = np.std(oof_preds) + 1e-6
+        self.mu_y_ = float(np.mean(y_arr))
+        self.std_y_ = float(np.std(y_arr) + 1e-6)
+        self.mu_pred_ = float(np.mean(oof_preds))
+        self.std_pred_ = float(np.std(oof_preds) + 1e-6)
         ratio_std = np.clip(self.std_y_ / self.std_pred_, 1.0, 2.2)
-        self.factor_escala_ = 1.0 + self.gamma_stretch * (ratio_std - 1.0)
+        self.factor_escala_ = float(1.0 + self.gamma_stretch * (ratio_std - 1.0))
         oof_cal = self.mu_y_ + self.factor_escala_ * (oof_preds - self.mu_pred_)
         res_abs = np.abs(y_arr - oof_cal)
         n = len(y_arr)
@@ -517,7 +517,7 @@ MAPEO_BD_EXACTO = {
 
 
 # ==============================================================================
-# 3. CARGA DE MODELOS (.PKL) Y SOPORTE DE ACTUALIZACIÓN DINÁMICA EN MEMORIA
+# 3. CARGA DE LOS 12 MODELOS (.PKL) ACTUALIZADOS Y GESTIÓN EN MEMORIA
 # ==============================================================================
 @st.cache_resource
 def cargar_repositorio_modelos():
@@ -526,19 +526,19 @@ def cargar_repositorio_modelos():
             "1d": ["modelo_GU_1d_produccion.pkl", "modelo_M35_1dia_produccion.pkl"],
             "3d": ["modelo_GU_3d_produccion.pkl", "modelo_M34_3d_produccion.pkl", "modelo_M35_3dias_produccion.pkl"],
             "7d": ["modelo_GU_7d_produccion.pkl", "modelo_M34_7d_produccion.pkl", "modelo_M35_7dias_produccion.pkl"],
-            "28d": ["modelo_GU_28d_PRO_produccion.pkl", "modelo_GU_28d_produccion.pkl", "modelo_M34_28d_produccion.pkl"]
+            "28d": ["modelo_GU_28d_produccion.pkl", "modelo_GU_28d_PRO_produccion.pkl", "modelo_M34_28d_produccion.pkl"]
         },
         "TI": {
             "1d": ["modelo_TI_1d_produccion.pkl"],
             "3d": ["modelo_TI_3d_produccion.pkl"],
             "7d": ["modelo_TI_7d_produccion.pkl"],
-            "28d": ["modelo_TI_28d_PRO_produccion.pkl", "modelo_TI_28d_produccion.pkl"]
+            "28d": ["modelo_TI_28d_produccion.pkl", "modelo_TI_28d_PRO_produccion.pkl"]
         },
         "HS": {
             "1d": ["modelo_HS_1d_produccion.pkl"],
             "3d": ["modelo_HS_3d_produccion.pkl"],
             "7d": ["modelo_HS_7d_produccion.pkl"],
-            "28d": ["modelo_HS_28d_PRO_produccion.pkl", "modelo_HS_28d_produccion.pkl"]
+            "28d": ["modelo_HS_28d_produccion.pkl", "modelo_HS_28d_PRO_produccion.pkl"]
         }
     }
     repo = {"GU": {}, "TI": {}, "HS": {}}
@@ -567,7 +567,7 @@ def obtener_modelo_activo(cod_cem, edad):
 
 
 # ==============================================================================
-# 4. LECTOR UNIVERSAL DE EXCEL Y MOTOR DE INFERENCIA INMUNE A VALUEERROR
+# 4. LECTOR UNIVERSAL DE EXCEL Y MOTOR DE INFERENCIA MULTIEDAD
 # ==============================================================================
 def normalizar_nombre(texto):
     if texto is None or pd.isna(texto):
@@ -597,18 +597,22 @@ def leer_excel_universal(archivo_subido):
     except Exception as e:
         raise ValueError(f"No se pudo decodificar el archivo '{nombre}'. Detalle: {e}")
 
-def formatear_valor_fecha(val):
+def parsear_timestamp_fecha(val):
     if val is None or pd.isna(val):
-        return None
+        return pd.NaT
     if hasattr(val, "strftime"):
-        return val.strftime("%d/%m/%y")
+        return pd.to_datetime(val, errors='coerce')
     txt = str(val).strip()
     if not txt or txt.lower() in ["nan", "nat", "none", ""]:
-        return None
+        return pd.NaT
     txt = re.sub(r'\s+12:00\s*a\.?\s*m\.?', '', txt, flags=re.IGNORECASE)
+    txt = re.sub(r'\s+12:00\s*p\.?\s*m\.?', '', txt, flags=re.IGNORECASE)
     txt = re.sub(r'a\.?\s*m\.?', 'AM', txt, flags=re.IGNORECASE)
     txt = re.sub(r'p\.?\s*m\.?', 'PM', txt, flags=re.IGNORECASE)
-    dt = pd.to_datetime(txt, errors='coerce')
+    return pd.to_datetime(txt, errors='coerce')
+
+def formatear_valor_fecha(val):
+    dt = parsear_timestamp_fecha(val)
     if pd.notna(dt):
         return dt.strftime("%d/%m/%y")
     return None
@@ -620,7 +624,7 @@ def a_serie_numerica(df_or_series):
         s = df_or_series
     return pd.to_numeric(s, errors='coerce')
 
-def limpiar_dataframe_lotes(df_raw, features_esperadas, defaults_cem, edad_seleccionada=None):
+def limpiar_dataframe_lotes(df_raw, features_esperadas, defaults_cem, edad_seleccionada=None, retener_todas_edades=False):
     df = df_raw.copy()
 
     cols_norm_actual = [normalizar_nombre(c) for c in df.columns]
@@ -632,6 +636,7 @@ def limpiar_dataframe_lotes(df_raw, features_esperadas, defaults_cem, edad_selec
                 df = df.iloc[r_idx + 1:].reset_index(drop=True)
                 break
 
+    # 1. Cortar fila de Promedio / Desviación Estandar hacia abajo
     idx_corte = None
     for i in range(len(df)):
         textos_fila = [str(v).lower() for v in df.iloc[i].values if v is not None and not pd.isna(v)]
@@ -642,6 +647,7 @@ def limpiar_dataframe_lotes(df_raw, features_esperadas, defaults_cem, edad_selec
     if idx_corte is not None:
         df = df.iloc[:idx_corte].copy()
 
+    # 2. Localizar columna Fecha y descartar N°, FALSE/ALSE y columnas vacías previas
     idx_col_fecha = None
     for j, col_name in enumerate(df.columns):
         if normalizar_nombre(col_name) in ['fecha', 'date', 'fechamolienda']:
@@ -661,9 +667,10 @@ def limpiar_dataframe_lotes(df_raw, features_esperadas, defaults_cem, edad_selec
     df = df.loc[:, ~df.columns.duplicated()].copy()
 
     if 'Fecha' in df.columns:
-        fechas_limpias = [formatear_valor_fecha(v) for v in df['Fecha'].values]
-        df['Fecha'] = fechas_limpias
-        df = df[df['Fecha'].notna()].copy()
+        dts = [parsear_timestamp_fecha(v) for v in df['Fecha'].values]
+        df['Fecha_DT'] = dts
+        df = df[df['Fecha_DT'].notna()].sort_values('Fecha_DT').copy()
+        df['Fecha'] = df['Fecha_DT'].dt.strftime("%d/%m/%y")
     else:
         cols_num = [c for c in features_esperadas if c in df.columns]
         if cols_num:
@@ -686,9 +693,16 @@ def limpiar_dataframe_lotes(df_raw, features_esperadas, defaults_cem, edad_selec
     columnas_vista = []
     if 'Fecha' in df.columns:
         columnas_vista.append('Fecha')
+    if retener_todas_edades and 'Fecha_DT' in df.columns:
+        columnas_vista.append('Fecha_DT')
     columnas_vista.extend([c for c in features_esperadas if c in df.columns])
 
-    if edad_seleccionada in ['1d', '3d', '7d', '28d']:
+    if retener_todas_edades:
+        for col_t in ['1_d', '3_d', '7_d', '28_d']:
+            if col_t in df.columns:
+                df[col_t] = a_serie_numerica(df[col_t]).round(0).astype('Int64')
+                columnas_vista.append(col_t)
+    elif edad_seleccionada in ['1d', '3d', '7d', '28d']:
         target_activo = f"{edad_seleccionada[:-1]}_d"
         if target_activo in df.columns:
             df[target_activo] = a_serie_numerica(df[target_activo]).round(0).astype('Int64')
@@ -802,7 +816,6 @@ def obtener_importancia_variables(modelo, df_fila, features_esperadas):
             imp_pct = (coefs / coefs.sum()) * 100.0
             return pd.DataFrame({'Variable': features_esperadas, 'Importancia (%)': imp_pct})
         elif len(coefs) == 2 * n_vars and coefs.max() > 0:
-            # Suma el impacto de la rama Standardize + la rama Smooth Ridit por cada variable
             coefs_combinados = coefs[:n_vars] + coefs[n_vars:2 * n_vars]
             imp_pct = (coefs_combinados / coefs_combinados.sum()) * 100.0
             return pd.DataFrame({'Variable': features_esperadas, 'Importancia (%)': imp_pct})
@@ -819,7 +832,8 @@ def obtener_importancia_variables(modelo, df_fila, features_esperadas):
     sens = np.asarray(sens)
     imp_pct = (sens / sens.sum()) * 100.0
     return pd.DataFrame({'Variable': features_esperadas, 'Importancia (%)': imp_pct})
-    
+
+
 # ==============================================================================
 # 5. ENCABEZADO SIMÉTRICO CENTRADO (3 COLUMNAS) Y SELECTORES
 # ==============================================================================
@@ -871,16 +885,16 @@ with col_bag:
 
 
 # ==============================================================================
-# 6. PESTAÑAS EJECUTIVAS (TERMINOLOGÍA TÉCNICA Y RAE)
+# 6. PESTAÑAS EJECUTIVAS (INCLUYE PESTAÑA 5: ESTADÍSTICO MENSUAL 3 CEMENTOS × 4 EDADES)
 # ==============================================================================
-tab_sim, tab_batch, tab_spc, tab_mlops = st.tabs([
+tab_sim, tab_batch, tab_spc, tab_mensual, tab_mlops = st.tabs([
     "🎛️ Inferencia y Variables Predictoras",
     "📂 Carga por Lotes y Métricas",
     "📈 Diagnóstico de Residuales y Control Estadístico",
+    "📊 Estadístico Mensual (3 Cementos × 4 Edades)",
     "🔄 Aprendizaje Continuo"
 ])
 
-# Mapa universal sincronizado con el selector superior "Edad de Predicción"
 MAPA_EDAD_SYNC = {
     "1 día": ("1d", "1 día"),
     "3 días": ("3d", "3 días"),
@@ -1172,7 +1186,11 @@ with tab_batch:
             df_vista, df_mod = limpiar_dataframe_lotes(
                 df_raw, cfg["features"], cfg["defaults"], edad_seleccionada=edad_batch
             )
+            df_vista_full, _ = limpiar_dataframe_lotes(
+                df_raw, cfg["features"], cfg["defaults"], retener_todas_edades=True
+            )
             st.session_state[f"lotes_{cod_cem}"] = (df_vista, df_mod)
+            st.session_state[f"maestro_multiedad_{cod_cem}"] = (df_vista_full, df_mod)
 
             mod_b, _ = obtener_modelo_activo(cod_cem, edad_batch)
             if mod_b is not None and len(df_mod) > 0:
@@ -1325,7 +1343,216 @@ with tab_spc:
         st.info("Carga un archivo en la pestaña **Carga por Lotes y Métricas** para visualizar el seguimiento temporal por fecha y el diagnóstico de residuales.")
 
 # ------------------------------------------------------------------------------
-# PESTAÑA 4: APRENDIZAJE CONTINUO (SINCRONIZADO AUTOMÁTICAMENTE CON LA EDAD SUPERIOR)
+# PESTAÑA 4 (NUEVA): ESTADÍSTICO MENSUAL CONSOLIDADO (3 CEMENTOS × 4 EDADES vs REAL)
+# ------------------------------------------------------------------------------
+with tab_mensual:
+    st.markdown("##### 📊 Estadístico Mensual Consolidado: 3 Cementos (TI, GU, HS) × 4 Edades (1d, 3d, 7d, 28d) vs. Real")
+    st.caption(
+        "Sube los Excels Maestros en bruto de **TI**, **GU** y **HS** (o cárgales en la Pestaña 2). "
+        "El motor filtra el mes seleccionado (ej. **Septiembre 2026**) y compara simultáneamente los 12 modelos frente a los valores reales de prensa."
+    )
+
+    MESES_DICT = {
+        "Todos los meses (Histórico Completo)": None,
+        "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4,
+        "Mayo": 5, "Junio": 6, "Julio": 7, "Agosto": 8,
+        "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
+    }
+
+    f_col1, f_col2 = st.columns(2)
+    with f_col1:
+        anio_filtro = st.selectbox("📅 Año de Evaluación:", [2026, 2025, 2024, 2023, 2022, "Todos los años"], index=0)
+    with f_col2:
+        mes_nombre = st.selectbox("📆 Mes de Evaluación:", list(MESES_DICT.keys()), index=9)  # Por defecto: Septiembre
+    mes_num = MESES_DICT[mes_nombre]
+
+    u_col1, u_col2, u_col3 = st.columns(3)
+    with u_col1:
+        up_ti = st.file_uploader("📂 Maestro Bruto TI (Cemento Sol)", type=["xlsx", "xls", "csv"], key="up_stat_ti")
+    with u_col2:
+        up_gu = st.file_uploader("📂 Maestro Bruto GU (Cemento Apu)", type=["xlsx", "xls", "csv"], key="up_stat_gu")
+    with u_col3:
+        up_hs = st.file_uploader("📂 Maestro Bruto HS (Cemento Andino)", type=["xlsx", "xls", "csv"], key="up_stat_hs")
+
+    MAPA_CFG_COD = {v["codigo"]: v for v in CONFIG_CEMENTOS.values()}
+    for c_key, up_file in [("TI", up_ti), ("GU", up_gu), ("HS", up_hs)]:
+        if up_file is not None:
+            try:
+                raw_c = leer_excel_universal(up_file)
+                cfg_c = MAPA_CFG_COD[c_key]
+                df_v_all, df_m_all = limpiar_dataframe_lotes(
+                    raw_c, cfg_c["features"], cfg_c["defaults"], retener_todas_edades=True
+                )
+                st.session_state[f"maestro_multiedad_{c_key}"] = (df_v_all, df_m_all)
+            except Exception as e:
+                st.error(f"Error al leer el archivo de {c_key}: {e}")
+
+    filas_estadistico = []
+    tablas_detalle_mes = {}
+
+    for c_key in ["TI", "GU", "HS"]:
+        if f"maestro_multiedad_{c_key}" not in st.session_state:
+            continue
+
+        df_v_c, df_m_c = st.session_state[f"maestro_multiedad_{c_key}"]
+        cfg_c = MAPA_CFG_COD[c_key]
+        mask_periodo = pd.Series(True, index=df_v_c.index)
+
+        if 'Fecha_DT' in df_v_c.columns:
+            if anio_filtro != "Todos los años":
+                mask_periodo &= (df_v_c['Fecha_DT'].dt.year == int(anio_filtro))
+            if mes_num is not None:
+                mask_periodo &= (df_v_c['Fecha_DT'].dt.month == int(mes_num))
+
+        df_v_sub = df_v_c.loc[mask_periodo].reset_index(drop=True)
+        df_m_sub = df_m_c.loc[mask_periodo].reset_index(drop=True)
+
+        if len(df_v_sub) == 0:
+            continue
+
+        df_det_cemento = pd.DataFrame()
+        if 'Fecha' in df_v_sub.columns:
+            df_det_cemento['Fecha'] = df_v_sub['Fecha']
+
+        for ed_code, ed_label, col_t in [
+            ("1d", "1 día", "1_d"),
+            ("3d", "3 días", "3_d"),
+            ("7d", "7 días", "7_d"),
+            ("28d", "28 días", "28_d")
+        ]:
+            mod_c, _ = obtener_modelo_activo(c_key, ed_code)
+            if mod_c is None:
+                continue
+
+            y_hat_m, p10_m, p90_m = predecir_con_modelo(
+                mod_c, df_m_sub, cfg_c["features"], sigma_fallback=cfg_c["incertidumbre_base"][ed_code]
+            )
+            y_pred_round = np.round(y_hat_m).astype(int)
+            df_det_cemento[f"{ed_code}_Pred (IA)"] = y_pred_round
+
+            if col_t in df_v_sub.columns:
+                y_real_s = pd.to_numeric(df_v_sub[col_t], errors='coerce')
+                df_det_cemento[f"{ed_code}_Real"] = y_real_s.round(0).astype('Int64')
+                df_det_cemento[f"{ed_code}_Error"] = np.where(y_real_s.notna(), y_pred_round - y_real_s, np.nan)
+
+                mask_r = y_real_s.notna()
+                n_val = int(mask_r.sum())
+                if n_val > 0:
+                    yr = y_real_s[mask_r].values.astype(float)
+                    yp = y_pred_round[mask_r].astype(float)
+
+                    prom_real = float(np.mean(yr))
+                    prom_pred = float(np.mean(yp))
+                    std_real = float(np.std(yr, ddof=1)) if n_val > 1 else 0.0
+                    std_pred = float(np.std(yp, ddof=1)) if n_val > 1 else 0.0
+                    bias = float(np.mean(yp - yr))
+                    mae_m = float(mean_absolute_error(yr, yp))
+                    mape_m = float(np.mean(np.abs((yr - yp) / yr)) * 100.0)
+                    rmse_m = float(np.sqrt(mean_squared_error(yr, yp)))
+                    exact_m = max(0.0, 100.0 - mape_m)
+
+                    filas_estadistico.append({
+                        "Cemento": c_key,
+                        "Marca": cfg_c["marca"],
+                        "Edad": ed_label,
+                        "N Lotes": n_val,
+                        "Promedio Real (kg/cm²)": round(prom_real, 1),
+                        "Promedio IA (kg/cm²)": round(prom_pred, 1),
+                        "Desv. Est. Real": round(std_real, 2),
+                        "Desv. Est. IA": round(std_pred, 2),
+                        "Sesgo (IA - Real)": round(bias, 2),
+                        "MAE (kg/cm²)": round(mae_m, 2),
+                        "MAPE (%)": round(mape_m, 2),
+                        "RMSE (kg/cm²)": round(rmse_m, 2),
+                        "Exactitud (%)": round(exact_m, 2)
+                    })
+
+        tablas_detalle_mes[c_key] = df_det_cemento
+
+    if filas_estadistico:
+        df_stat_mes = pd.DataFrame(filas_estadistico)
+
+        # KPIs ejecutivos globales del mes filtrado
+        k_s1, k_s2, k_s3, k_s4 = st.columns(4)
+        k_s1.markdown(
+            f'<div class="metric-exec-card"><div class="metric-exec-title">Exactitud Media ({mes_nombre})</div>'
+            f'<div class="metric-exec-val" style="color:#10B981;">{df_stat_mes["Exactitud (%)"].mean():.2f}%</div></div>',
+            unsafe_allow_html=True
+        )
+        k_s2.markdown(
+            f'<div class="metric-exec-card"><div class="metric-exec-title">MAPE Medio ({mes_nombre})</div>'
+            f'<div class="metric-exec-val">{df_stat_mes["MAPE (%)"].mean():.2f}%</div></div>',
+            unsafe_allow_html=True
+        )
+        k_s3.markdown(
+            f'<div class="metric-exec-card"><div class="metric-exec-title">MAE Medio ({mes_nombre})</div>'
+            f'<div class="metric-exec-val">{df_stat_mes["MAE (kg/cm²)"].mean():.2f} kg/cm²</div></div>',
+            unsafe_allow_html=True
+        )
+        k_s4.markdown(
+            f'<div class="metric-exec-card"><div class="metric-exec-title">Modelos / Edades Evaluados</div>'
+            f'<div class="metric-exec-val">{len(df_stat_mes)} bloques</div></div>',
+            unsafe_allow_html=True
+        )
+
+        st.markdown(f'<div class="section-header">📋 Tabla Estadística Comparativa: {mes_nombre} {anio_filtro} (Real vs. DCCAI)</div>', unsafe_allow_html=True)
+        st.dataframe(df_stat_mes, use_container_width=True, height=430)
+
+        # Gráfico comparativo de Barras: Promedio Real vs Promedio Predicho con Desviación Estándar
+        etiquetas_x = [f"{r['Cemento']} - {r['Edad']}" for _, r in df_stat_mes.iterrows()]
+        fig_bar_mes = go.Figure()
+        fig_bar_mes.add_trace(go.Bar(
+            x=etiquetas_x,
+            y=df_stat_mes["Promedio Real (kg/cm²)"],
+            name="Promedio Real (Prensa)",
+            marker_color="#38BDF8",
+            text=[f"{v:.0f}" for v in df_stat_mes["Promedio Real (kg/cm²)"]],
+            textposition="outside",
+            error_y=dict(type='data', array=df_stat_mes["Desv. Est. Real"], visible=True, color="#E0F2FE")
+        ))
+        fig_bar_mes.add_trace(go.Bar(
+            x=etiquetas_x,
+            y=df_stat_mes["Promedio IA (kg/cm²)"],
+            name="Promedio Predicho (DCCAI)",
+            marker_color="#E30613",
+            text=[f"{v:.0f}" for v in df_stat_mes["Promedio IA (kg/cm²)"]],
+            textposition="outside",
+            error_y=dict(type='data', array=df_stat_mes["Desv. Est. IA"], visible=True, color="#F8FAFC")
+        ))
+        fig_bar_mes.update_layout(
+            barmode="group",
+            title=f"Comparativo de Promedios y Desviación Estándar por Cemento y Edad ({mes_nombre} {anio_filtro})",
+            xaxis=dict(title="Cemento y Edad de Ensayo", showgrid=False),
+            yaxis=dict(title="Resistencia a la Compresión (kg/cm²)", showgrid=False),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            height=390
+        )
+        st.plotly_chart(fig_bar_mes, use_container_width=True)
+
+        # Visualizador de detalle diario del mes por cemento
+        cems_disp = list(tablas_detalle_mes.keys())
+        cem_ver = st.selectbox("🔎 Ver desglose lote por lote del periodo para:", cems_disp)
+        st.dataframe(tablas_detalle_mes[cem_ver], use_container_width=True, height=300)
+
+        # Botón para exportar todo el Estadístico Mensual a un Excel multi-hoja
+        buf_stat = io.BytesIO()
+        with pd.ExcelWriter(buf_stat, engine='openpyxl') as writer:
+            df_stat_mes.to_excel(writer, index=False, sheet_name="Resumen_Estadistico_Mes")
+            for c_k, df_d in tablas_detalle_mes.items():
+                df_d.to_excel(writer, index=False, sheet_name=f"Detalle_{c_k}_{mes_nombre}"[:31])
+        st.download_button(
+            label=f"⬇️ Descargar Estadístico Completo de {mes_nombre} {anio_filtro} (3 Cementos × 4 Edades)",
+            data=buf_stat.getvalue(),
+            file_name=f"Estadistico_DCCAI_{mes_nombre}_{anio_filtro}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
+    else:
+        st.info("Sube arriba al menos uno de los Excels Maestros en bruto (**TI**, **GU** o **HS**) para generar el cuadro estadístico comparativo del mes.")
+
+# ------------------------------------------------------------------------------
+# PESTAÑA 5: APRENDIZAJE CONTINUO (SINCRONIZADO AUTOMÁTICAMENTE CON LA EDAD SUPERIOR)
 # ------------------------------------------------------------------------------
 with tab_mlops:
     edad_retrain = edad_sync_code
@@ -1378,12 +1605,6 @@ with tab_mlops:
                     X_aln_new = alinear_df_para_modelo(mod_actual, X_tr_new, cfg["features"])
 
                     if "Incremental" in modo_mlops:
-                        # Aprendizaje Incremental: combina la predicción histórica del .pkl con un ajuste sobre los lotes nuevos
-                        y_base_hist = ejecutar_predict_seguro(mod_actual, X_tr_new, cfg["features"])
-                        residuo_nuevo = y_tr_new.values - y_base_hist
-                        sesgo_medio = float(np.mean(residuo_nuevo))
-
-                        # Si el estimador interno es LightGBM o XGBoost, aplica continuación suave
                         arq_base = clone(mod_actual.base_estimator if hasattr(mod_actual, "base_estimator") else mod_actual)
                         est_int = arq_base.steps[-1][1] if hasattr(arq_base, "steps") else arq_base
                         mod_prev_int = mod_actual.steps[-1][1] if hasattr(mod_actual, "steps") else mod_actual
@@ -1402,7 +1623,6 @@ with tab_mlops:
                             else:
                                 raise ValueError("Usar calibración incremental universal")
                         except Exception:
-                            # Calibración incremental universal (preserva la estructura del modelo histórico + corrige deriva)
                             modelo_actualizado = CalibradorVarianzaConformal(
                                 base_estimator=clone(mod_actual.base_estimator if hasattr(mod_actual, "base_estimator") else mod_actual),
                                 gamma_stretch=0.35, alpha_conformal=0.20, cv=min(5, len(X_tr_new))
@@ -1415,7 +1635,6 @@ with tab_mlops:
                         rmse_cv = np.sqrt(mean_squared_error(y_tr_new, preds_eval))
                         exactitud_cv = max(0.0, 100.0 - mape_cv)
                     else:
-                        # Reentrenamiento Acumulado con Validación Cruzada 5-Fold CV y ponderación exponencial reciente
                         arq_base = clone(mod_actual.base_estimator if hasattr(mod_actual, "base_estimator") else mod_actual)
                         n_splits = min(5, len(X_tr_new))
                         kf = KFold(n_splits=n_splits, shuffle=True, random_state=1234)
