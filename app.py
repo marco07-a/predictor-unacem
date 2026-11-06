@@ -517,54 +517,73 @@ MAPEO_BD_EXACTO = {
 
 
 # ==============================================================================
-# 3. CARGA DE LOS 12 MODELOS (.PKL) ACTUALIZADOS Y GESTIÓN EN MEMORIA
+# 3. CARGA INTELIGENTE DE LOS 12 MODELOS (.PKL) INMUNE A CACHÉ Y A "(1).pkl"
 # ==============================================================================
-@st.cache_resource
-def cargar_repositorio_modelos():
-    candidatos = {
+
+import glob
+
+def buscar_y_cargar_pkl(cod_cem, edad):
+    patrones_base = {
         "GU": {
-            "1d": ["modelo_GU_1d_produccion.pkl", "modelo_M35_1dia_produccion.pkl"],
-            "3d": ["modelo_GU_3d_produccion.pkl", "modelo_M34_3d_produccion.pkl", "modelo_M35_3dias_produccion.pkl"],
-            "7d": ["modelo_GU_7d_produccion.pkl", "modelo_M34_7d_produccion.pkl", "modelo_M35_7dias_produccion.pkl"],
-            "28d": ["modelo_GU_28d_produccion.pkl", "modelo_GU_28d_PRO_produccion.pkl", "modelo_M34_28d_produccion.pkl"]
+            "1d": ["modelo_GU_1d_produccion", "modelo_M35_1dia_produccion"],
+            "3d": ["modelo_GU_3d_produccion", "modelo_M34_3d_produccion", "modelo_M35_3dias_produccion"],
+            "7d": ["modelo_GU_7d_produccion", "modelo_M34_7d_produccion", "modelo_M35_7dias_produccion"],
+            "28d": ["modelo_GU_28d_produccion", "modelo_GU_28d_PRO_produccion", "modelo_M34_28d_produccion"]
         },
         "TI": {
-            "1d": ["modelo_TI_1d_produccion.pkl"],
-            "3d": ["modelo_TI_3d_produccion.pkl"],
-            "7d": ["modelo_TI_7d_produccion.pkl"],
-            "28d": ["modelo_TI_28d_produccion.pkl", "modelo_TI_28d_PRO_produccion.pkl"]
+            "1d": ["modelo_TI_1d_produccion"],
+            "3d": ["modelo_TI_3d_produccion"],
+            "7d": ["modelo_TI_7d_produccion"],
+            "28d": ["modelo_TI_28d_produccion", "modelo_TI_28d_PRO_produccion"]
         },
         "HS": {
-            "1d": ["modelo_HS_1d_produccion.pkl"],
-            "3d": ["modelo_HS_3d_produccion.pkl"],
-            "7d": ["modelo_HS_7d_produccion.pkl"],
-            "28d": ["modelo_HS_28d_produccion.pkl", "modelo_HS_28d_PRO_produccion.pkl"]
+            "1d": ["modelo_HS_1d_produccion"],
+            "3d": ["modelo_HS_3d_produccion"],
+            "7d": ["modelo_HS_7d_produccion"],
+            "28d": ["modelo_HS_28d_produccion", "modelo_HS_28d_PRO_produccion"]
         }
     }
-    repo = {"GU": {}, "TI": {}, "HS": {}}
-    for cem, edades in candidatos.items():
-        for edad, rutas in edades.items():
-            modelo_cargado, ruta_activa = None, None
-            for r in rutas:
-                if os.path.exists(r):
-                    try:
-                        raw_mod = joblib.load(r)
-                        modelo_cargado = reparar_compatibilidad_sklearn(raw_mod)
-                        ruta_activa = r
-                        break
-                    except Exception:
-                        pass
-            repo[cem][edad] = (modelo_cargado, ruta_activa)
-    return repo
 
-REPO_MODELOS = cargar_repositorio_modelos()
+    archivos_raiz = os.listdir(".")
+    candidatos_encontrados = []
+
+    for base in patrones_base.get(cod_cem, {}).get(edad, []):
+        # 1. Coincidencia exacta
+        if f"{base}.pkl" in archivos_raiz:
+            candidatos_encontrados.append(f"{base}.pkl")
+        # 2. Coincidencia si se descargó de Colab como " (1).pkl" o "(1).pkl"
+        for f in archivos_raiz:
+            if f.startswith(base) and f.endswith(".pkl") and f not in candidatos_encontrados:
+                candidatos_encontrados.append(f)
+
+    ultimo_error = None
+    for ruta in candidatos_encontrados:
+        try:
+            raw_mod = joblib.load(ruta)
+            modelo_cargado = reparar_compatibilidad_sklearn(raw_mod)
+            return modelo_cargado, ruta
+        except Exception as e:
+            ultimo_error = f"{ruta}: {e}"
+
+    if ultimo_error:
+        st.warning(f"⚠️ Detalle técnico al leer {cod_cem}-{edad}: {ultimo_error}")
+    return None, None
 
 def obtener_modelo_activo(cod_cem, edad):
+    # 1. Si fue actualizado en vivo en la Pestaña de Aprendizaje Continuo
     clave_dyn = f"modelo_dinamico_{cod_cem}_{edad}"
     if clave_dyn in st.session_state:
         return st.session_state[clave_dyn]
-    return REPO_MODELOS[cod_cem][edad]
 
+    # 2. Caché en sesión solo si el modelo cargó exitosamente (nunca cachea None)
+    clave_cache = f"modelo_disk_{cod_cem}_{edad}"
+    if clave_cache in st.session_state and st.session_state[clave_cache][0] is not None:
+        return st.session_state[clave_cache]
+
+    mod, ruta = buscar_y_cargar_pkl(cod_cem, edad)
+    if mod is not None:
+        st.session_state[clave_cache] = (mod, ruta)
+    return mod, ruta
 
 # ==============================================================================
 # 4. LECTOR UNIVERSAL DE EXCEL Y MOTOR DE INFERENCIA MULTIEDAD
