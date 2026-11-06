@@ -151,6 +151,11 @@ st.markdown("""
         padding-bottom: 5.0rem !important;
         max-width: 97% !important;
     }
+    /* Oculta la barra superior de Cemento y Edad cuando están activas la Pestaña 4 o la Pestaña 5 */
+    .stApp:has(div[data-baseweb="tab-list"] button[data-baseweb="tab"]:nth-child(4)[aria-selected="true"]) div[data-testid="stHorizontalBlock"]:has(.marcador-selector-top),
+    .stApp:has(div[data-baseweb="tab-list"] button[data-baseweb="tab"]:nth-child(5)[aria-selected="true"]) div[data-testid="stHorizontalBlock"]:has(.marcador-selector-top) {
+        display: none !important;
+    }
     .splash-box {
         background: radial-gradient(circle at center, #1E293B 0%, #0F172A 100%);
         border: 1px solid #334155;
@@ -867,7 +872,7 @@ def obtener_importancia_variables(modelo, df_fila, features_esperadas):
 
 
 # ==============================================================================
-# 5. ENCABEZADO SIMÉTRICO CENTRADO (3 COLUMNAS) Y SELECTORES
+# 5. ENCABEZADO SIMÉTRICO Y BARRA SUPERIOR (SOLO VISIBLE EN MÓDULOS 1, 2 Y 3)
 # ==============================================================================
 logo_header_html = f'<img src="{LOGO_URI}" style="height:52px;">' if LOGO_URI else ''
 
@@ -888,6 +893,7 @@ st.markdown(header_html, unsafe_allow_html=True)
 
 col_sel1, col_sel2, col_bag = st.columns([1.5, 1.5, 1.2])
 with col_sel1:
+    st.markdown('<span class="marcador-selector-top" style="display:none;"></span>', unsafe_allow_html=True)
     tipo_cemento_label = st.selectbox("Cemento", list(CONFIG_CEMENTOS.keys()), index=0)
 with col_sel2:
     edad_label = st.selectbox(
@@ -1401,7 +1407,7 @@ with tab_spc:
         st.info("Carga un archivo en la pestaña **Carga por Lotes y Métricas** para visualizar el seguimiento temporal por fecha y el diagnóstico de residuales.")
 
 # ------------------------------------------------------------------------------
-# PESTAÑA 4: ESTADÍSTICO MENSUAL CONSOLIDADO (3 CEMENTOS × 4 EDADES vs REAL)
+# PESTAÑA 4: ESTADÍSTICO MENSUAL CONSOLIDADO (SIN BARRA DE CEMENTO/EDAD ARRIBA)
 # ------------------------------------------------------------------------------
 with tab_mensual:
     st.markdown("##### 📊 Estadístico Mensual Consolidado: 3 Cementos (TI, GU, HS) × 4 Edades (1d, 3d, 7d, 28d) vs. Real")
@@ -1556,7 +1562,6 @@ with tab_mensual:
         altura_stat = (len(df_stat_mes) + 1) * 35 + 3
         st.dataframe(df_stat_mes, use_container_width=True, height=altura_stat)
 
-        # Gráfico compacto sin cuadrícula de fondo
         etiquetas_x = [f"{r['Cemento']} - {r['Edad']}" for _, r in df_stat_mes.iterrows()]
         max_y_bar = float(
             max(
@@ -1595,7 +1600,6 @@ with tab_mensual:
         )
         st.plotly_chart(fig_bar_mes, use_container_width=True)
 
-        # Selector compacto sin cuadros adicionales al lado
         cems_disp = list(tablas_detalle_mes.keys())
         col_sel_compacto, _ = st.columns([1.8, 4.2])
         with col_sel_compacto:
@@ -1620,17 +1624,25 @@ with tab_mensual:
         st.info("Sube arriba al menos uno de los Excels Maestros en bruto (**TI**, **GU** o **HS**) para generar el cuadro estadístico comparativo del mes.")
 
 # ------------------------------------------------------------------------------
-# PESTAÑA 5: APRENDIZAJE CONTINUO (SINCRONIZADO AUTOMÁTICAMENTE CON LA EDAD SUPERIOR)
+# PESTAÑA 5: APRENDIZAJE CONTINUO (AUTÓNOMO CON SUS PROPIOS SELECTORES INTERNOS)
 # ------------------------------------------------------------------------------
 with tab_mlops:
-    edad_retrain = edad_sync_code
-    target_retrain = f"{edad_retrain[:-1]}_d"
-
-    st.markdown(f"##### 🔄 Aprendizaje Continuo y Gobernanza MLOps ({cfg['marca']} — {edad_sync_texto})")
+    st.markdown("##### 🔄 Aprendizaje Continuo y Gobernanza MLOps")
     st.caption(
-        f"Sincronizado automáticamente con **{tipo_cemento_label}** a **{edad_sync_texto}**. "
-        f"Mitiga la deriva de concepto (*Concept Drift*) ante cambios en la mineralogía del clínker o frentes de cantera."
+        "Selecciona la familia de cemento y la edad de ensayo a calibrar. "
+        "Mitiga la deriva de concepto (*Concept Drift*) ante cambios en la mineralogía del clínker o frentes de cantera."
     )
+
+    ml_col1, ml_col2 = st.columns(2)
+    with ml_col1:
+        cem_mlops_label = st.selectbox("🏭 Cemento a actualizar:", list(CONFIG_CEMENTOS.keys()), index=0, key="sel_cem_mlops")
+    with ml_col2:
+        edad_mlops_label = st.selectbox("⏱️ Edad de ensayo a actualizar:", ["1 día", "3 días", "7 días", "28 días"], index=3, key="sel_ed_mlops")
+
+    cfg_mlops = CONFIG_CEMENTOS[cem_mlops_label]
+    cod_cem_mlops = cfg_mlops["codigo"]
+    edad_retrain, edad_retrain_texto = MAPA_EDAD_SYNC[edad_mlops_label]
+    target_retrain = f"{edad_retrain[:-1]}_d"
 
     modo_mlops = st.radio(
         "Estrategia de actualización del modelo:",
@@ -1642,9 +1654,9 @@ with tab_mlops:
     )
 
     etiqueta_up = (
-        f"Sube el Excel con la base histórica acumulada ({tipo_cemento_label} • {edad_sync_texto})"
+        f"Sube el Excel con la base histórica acumulada ({cem_mlops_label} • {edad_retrain_texto})"
         if "Acumulado" in modo_mlops else
-        f"Sube el Excel únicamente con los nuevos lotes cerrados ({tipo_cemento_label} • {edad_sync_texto})"
+        f"Sube el Excel únicamente con los nuevos lotes cerrados ({cem_mlops_label} • {edad_retrain_texto})"
     )
 
     archivo_hist_nuevo = st.file_uploader(
@@ -1656,21 +1668,21 @@ with tab_mlops:
     if archivo_hist_nuevo is not None:
         df_raw_h = leer_excel_universal(archivo_hist_nuevo)
         df_vista_h, df_mod_h = limpiar_dataframe_lotes(
-            df_raw_h, cfg["features"], cfg["defaults"], edad_seleccionada=edad_retrain
+            df_raw_h, cfg_mlops["features"], cfg_mlops["defaults"], edad_seleccionada=edad_retrain
         )
 
         if target_retrain in df_vista_h.columns:
             y_full = pd.to_numeric(df_vista_h[target_retrain], errors='coerce')
             mask_ok = y_full.notna()
-            X_tr_new = df_mod_h.loc[mask_ok, cfg["features"]].reset_index(drop=True)
+            X_tr_new = df_mod_h.loc[mask_ok, cfg_mlops["features"]].reset_index(drop=True)
             y_tr_new = y_full[mask_ok].reset_index(drop=True)
 
-            st.info(f"✔️ Lotes validados para **{edad_sync_texto}**: **{len(X_tr_new)} muestras con resistencia real**.")
+            st.info(f"✔️ Lotes validados para **{cod_cem_mlops} — {edad_retrain_texto}**: **{len(X_tr_new)} muestras con resistencia real**.")
 
-            if st.button(f"🚀 Ejecutar Actualización del Modelo ({cod_cem} • {edad_sync_texto})", use_container_width=True):
-                mod_actual, ruta_act = obtener_modelo_activo(cod_cem, edad_retrain)
+            if st.button(f"🚀 Ejecutar Actualización del Modelo ({cod_cem_mlops} • {edad_retrain_texto})", use_container_width=True):
+                mod_actual, ruta_act = obtener_modelo_activo(cod_cem_mlops, edad_retrain)
                 if mod_actual is not None and len(X_tr_new) >= 5:
-                    X_aln_new = alinear_df_para_modelo(mod_actual, X_tr_new, cfg["features"])
+                    X_aln_new = alinear_df_para_modelo(mod_actual, X_tr_new, cfg_mlops["features"])
 
                     if "Incremental" in modo_mlops:
                         arq_base = clone(mod_actual.base_estimator if hasattr(mod_actual, "base_estimator") else mod_actual)
@@ -1697,7 +1709,7 @@ with tab_mlops:
                             )
                             modelo_actualizado.fit(X_aln_new, y_tr_new)
 
-                        preds_eval = ejecutar_predict_seguro(modelo_actualizado, X_tr_new, cfg["features"])
+                        preds_eval = ejecutar_predict_seguro(modelo_actualizado, X_tr_new, cfg_mlops["features"])
                         mae_cv = mean_absolute_error(y_tr_new, preds_eval)
                         mape_cv = np.mean(np.abs((y_tr_new - preds_eval) / y_tr_new)) * 100
                         rmse_cv = np.sqrt(mean_squared_error(y_tr_new, preds_eval))
@@ -1721,10 +1733,10 @@ with tab_mlops:
                         modelo_actualizado = clone(arq_base)
                         modelo_actualizado.fit(X_aln_new, y_tr_new)
 
-                    nombre_pkl_nuevo = ruta_act if ruta_act else f"modelo_{cod_cem}_{edad_retrain}_produccion.pkl"
-                    st.session_state[f"modelo_dinamico_{cod_cem}_{edad_retrain}"] = (modelo_actualizado, nombre_pkl_nuevo)
+                    nombre_pkl_nuevo = ruta_act if ruta_act else f"modelo_{cod_cem_mlops}_{edad_retrain}_produccion.pkl"
+                    st.session_state[f"modelo_dinamico_{cod_cem_mlops}_{edad_retrain}"] = (modelo_actualizado, nombre_pkl_nuevo)
 
-                    st.success(f"✅ Modelo **{cod_cem} ({edad_sync_texto})** actualizado y activo en sesión ({len(X_tr_new)} muestras procesadas).")
+                    st.success(f"✅ Modelo **{cod_cem_mlops} ({edad_retrain_texto})** actualizado y activo en sesión ({len(X_tr_new)} muestras procesadas).")
                     c_m1, c_m2, c_m3, c_m4 = st.columns(4)
                     c_m1.markdown(f'<div class="metric-exec-card"><div class="metric-exec-title">Exactitud Predictiva</div><div class="metric-exec-val" style="color:#10B981;">{exactitud_cv:.2f}%</div></div>', unsafe_allow_html=True)
                     c_m2.markdown(f'<div class="metric-exec-card"><div class="metric-exec-title">MAPE Promedio</div><div class="metric-exec-val">{mape_cv:.2f}%</div></div>', unsafe_allow_html=True)
@@ -1745,7 +1757,7 @@ with tab_mlops:
                 else:
                     st.error("No se encontró el modelo base para clonar su arquitectura.")
         else:
-            st.warning(f"El archivo subido no contiene la columna de resistencia para **{edad_sync_texto}** (`{target_retrain}`).")
+            st.warning(f"El archivo subido no contiene la columna de resistencia para **{edad_retrain_texto}** (`{target_retrain}`).")
 
 # ==============================================================================
 # 7. PIE DE PÁGINA INSTITUCIONAL SIEMPRE FIJO ABAJO
