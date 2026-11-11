@@ -8,7 +8,9 @@ import sys
 import re
 import io
 import time
+import json
 import base64
+import hashlib
 import unicodedata
 from sklearn.base import BaseEstimator, TransformerMixin, RegressorMixin, clone
 from sklearn.impute import SimpleImputer
@@ -147,14 +149,9 @@ st.markdown("""
         background: linear-gradient(180deg, #0F172A 0%, #111827 100%) !important;
     }
     .block-container {
-        padding-top: 2.2rem !important;
+        padding-top: 2.0rem !important;
         padding-bottom: 5.0rem !important;
         max-width: 97% !important;
-    }
-    /* Oculta la barra superior de Cemento y Edad cuando están activas la Pestaña 4 o la Pestaña 5 */
-    .stApp:has(div[data-baseweb="tab-list"] button[data-baseweb="tab"]:nth-child(4)[aria-selected="true"]) div[data-testid="stHorizontalBlock"]:has(.marcador-selector-top),
-    .stApp:has(div[data-baseweb="tab-list"] button[data-baseweb="tab"]:nth-child(5)[aria-selected="true"]) div[data-testid="stHorizontalBlock"]:has(.marcador-selector-top) {
-        display: none !important;
     }
     .splash-box {
         background: radial-gradient(circle at center, #1E293B 0%, #0F172A 100%);
@@ -166,6 +163,16 @@ st.markdown("""
         margin: 40px auto;
         max-width: 820px;
         box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65);
+    }
+    .login-box {
+        background: radial-gradient(circle at top, #1E293B 0%, #0F172A 100%);
+        border: 1px solid #334155;
+        border-top: 4px solid #E30613;
+        border-radius: 16px;
+        padding: 32px 28px 22px 28px;
+        text-align: center;
+        margin: 24px auto 14px auto;
+        box-shadow: 0 18px 42px rgba(0, 0, 0, 0.60);
     }
     .splash-dcca {
         font-size: 0.98rem;
@@ -189,7 +196,7 @@ st.markdown("""
         border-top: 3px solid #E30613;
         border-radius: 12px;
         padding: 14px 24px;
-        margin-bottom: 16px;
+        margin-bottom: 14px;
         display: grid;
         grid-template-columns: 1fr 2.4fr 1fr;
         align-items: center;
@@ -256,6 +263,19 @@ st.markdown("""
         gap: 14px;
         height: 100%;
         box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    }
+    /* Estilo de barra de navegación de módulos tipo pestañas corporativas */
+    div[data-testid="stRadio"] > div[role="radiogroup"] {
+        border-bottom: 1px solid #334155;
+        padding-bottom: 6px;
+        gap: 18px;
+    }
+    div[data-testid="stRadio"] > div[role="radiogroup"] > label {
+        background: transparent !important;
+        padding: 6px 10px !important;
+        border-radius: 4px 4px 0 0 !important;
+        font-weight: 700 !important;
+        transition: all 0.15s ease-in-out;
     }
     .predictor-main-title {
         font-size: 1.05rem;
@@ -399,7 +419,130 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# PANTALLA DE PRESENTACIÓN INICIAL (3.0 SEGUNDOS EXACTOS)
+
+# ==============================================================================
+# 1.5 CONTROL DE ACCESO RESTRINGIDO Y GESTIÓN DE USUARIOS POR EL ADMINISTRADOR
+# ==============================================================================
+ARCHIVO_USUARIOS_LOCAL = ".usuarios_autorizados_dccai.json"
+
+def hash_clave(clave_plana):
+    return hashlib.sha256(str(clave_plana).strip().encode("utf-8")).hexdigest()
+
+# Usuarios autorizados por defecto (El Administrador puede crear/revocar más desde la interfaz)
+USUARIOS_BASE = {
+    "mmartinez": {
+        "nombre": "Ing. CIP Marco Antonio Uriel Martínez Sánchez",
+        "rol": "Administrador Principal DCCA",
+        "es_admin": True,
+        "hash": hash_clave("Unacem2026*Admin")
+    },
+    "jefatura.dcca": {
+        "nombre": "Jefatura / Subgerencia DCCA",
+        "rol": "Supervisión Ejecutiva DCCA",
+        "es_admin": False,
+        "hash": hash_clave("Dcca2026*Calidad")
+    },
+    "analista.dcca": {
+        "nombre": "Analista / Inspector de Calidad",
+        "rol": "Operaciones Laboratorio DCCA",
+        "es_admin": False,
+        "hash": hash_clave("Atocongo2026*")
+    }
+}
+
+def cargar_catalogo_usuarios():
+    catalogo = {k: v.copy() for k, v in USUARIOS_BASE.items()}
+    # 1. Si el administrador definió usuarios adicionales en Streamlit Secrets
+    try:
+        if "USUARIOS_DCCAI" in st.secrets:
+            for u_sec, d_sec in st.secrets["USUARIOS_DCCAI"].items():
+                u_key = str(u_sec).strip().lower()
+                if isinstance(d_sec, str):
+                    catalogo[u_key] = {
+                        "nombre": u_key.upper(),
+                        "rol": "Usuario Autorizado DCCA",
+                        "es_admin": False,
+                        "hash": hash_clave(d_sec)
+                    }
+                elif isinstance(d_sec, dict):
+                    catalogo[u_key] = {
+                        "nombre": d_sec.get("nombre", u_key),
+                        "rol": d_sec.get("rol", "Usuario Autorizado DCCA"),
+                        "es_admin": bool(d_sec.get("es_admin", False)),
+                        "hash": hash_clave(d_sec.get("password", "Unacem2026*"))
+                    }
+    except Exception:
+        pass
+
+    # 2. Usuarios creados dinámicamente por el Administrador desde el Panel Admin
+    if os.path.exists(ARCHIVO_USUARIOS_LOCAL):
+        try:
+            with open(ARCHIVO_USUARIOS_LOCAL, "r", encoding="utf-8") as f:
+                extra = json.load(f)
+            for k, v in extra.items():
+                catalogo[k] = v
+        except Exception:
+            pass
+    return catalogo
+
+def guardar_catalogo_usuarios(catalogo):
+    try:
+        with open(ARCHIVO_USUARIOS_LOCAL, "w", encoding="utf-8") as f:
+            json.dump(catalogo, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+if "catalogo_usuarios" not in st.session_state:
+    st.session_state["catalogo_usuarios"] = cargar_catalogo_usuarios()
+
+if "usuario_autenticado" not in st.session_state:
+    st.session_state["usuario_autenticado"] = None
+
+# Si el usuario aún no ha iniciado sesión, mostrar portal cerrado de acceso exclusivo
+if st.session_state["usuario_autenticado"] is None:
+    _, col_login, _ = st.columns([1.2, 1.5, 1.2])
+    with col_login:
+        logo_login = f'<div><img src="{LOGO_URI}" style="max-height:66px; margin-bottom:8px;"></div>' if LOGO_URI else ''
+        st.markdown(
+            f'<div class="login-box">'
+            f'{logo_login}'
+            f'<div class="splash-dcca" style="margin-top:6px;">DIVISIÓN DE CONTROL DE CALIDAD ATOCONGO - DCCA</div>'
+            f'<div style="font-size:2.2rem; font-weight:900; color:#F8FAFC; margin-bottom:4px;">DCC<span style="color:#E30613;">AI</span></div>'
+            f'<div style="color:#E2E8F0; font-size:0.96rem; font-weight:600; margin-bottom:4px;">Portal de Acceso Restringido</div>'
+            f'<div style="color:#94A3B8; font-size:0.82rem;">Ingreso exclusivo para personal autorizado por el Administrador del Sistema</div>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+        with st.form("form_login_dccai", clear_on_submit=False):
+            user_in = st.text_input("👤 Usuario corporativo:", placeholder="Ej. mmartinez").strip().lower()
+            pass_in = st.text_input("🔑 Contraseña de acceso:", type="password", placeholder="••••••••••••")
+            btn_ingresar = st.form_submit_button("🔒 Iniciar Sesión en DCCAI", use_container_width=True)
+
+            if btn_ingresar:
+                cat_actual = st.session_state["catalogo_usuarios"]
+                if user_in in cat_actual and cat_actual[user_in]["hash"] == hash_clave(pass_in):
+                    st.session_state["usuario_autenticado"] = {
+                        "username": user_in,
+                        "nombre": cat_actual[user_in]["nombre"],
+                        "rol": cat_actual[user_in]["rol"],
+                        "es_admin": cat_actual[user_in].get("es_admin", False)
+                    }
+                    st.rerun()
+                else:
+                    st.error("❌ Credenciales no autorizadas. Solicita habilitación de acceso al Administrador (Ing. CIP Marco Martínez Sánchez).")
+
+    footer_login = (
+        '<div class="footer-disclaimer">'
+        '<div><b>UNACEM &mdash; División de Control de Calidad Atocongo (DCCA)</b> &bull; Sistema DCCAI &bull; '
+        'Elaborado por Ing. CIP Marco Antonio Uriel Martínez Sánchez</div>'
+        '<div>Las estimaciones e intervalos conformales son herramientas de soporte operativo y pueden presentar variaciones de acuerdo al proceso.</div>'
+        '</div>'
+    )
+    st.markdown(footer_login, unsafe_allow_html=True)
+    st.stop()
+
+
+# PANTALLA DE PRESENTACIÓN INICIAL TRAS LOGIN (3.0 SEGUNDOS EXACTOS)
 if "splash_mostrado" not in st.session_state:
     placeholder = st.empty()
     logo_html = f'<div><img src="{LOGO_URI}" style="max-height:80px; margin-bottom:10px;"></div>' if LOGO_URI else ''
@@ -431,7 +574,7 @@ if "splash_mostrado" not in st.session_state:
         st.markdown(splash_html, unsafe_allow_html=True)
         barra = st.progress(0, text="Inicializando arquitectura predictiva DCCAI...")
         for pct in range(0, 101, 25):
-            time.sleep(0.60)
+            time.sleep(0.55)
             barra.progress(pct, text="Sincronizando modelos de Machine Learning (Sol, Apu y Andino)...")
     placeholder.empty()
     st.session_state["splash_mostrado"] = True
@@ -872,7 +1015,7 @@ def obtener_importancia_variables(modelo, df_fila, features_esperadas):
 
 
 # ==============================================================================
-# 5. ENCABEZADO SIMÉTRICO Y BARRA SUPERIOR (SOLO VISIBLE EN MÓDULOS 1, 2 Y 3)
+# 5. ENCABEZADO CORPORATIVO, PANEL DE ADMINISTRADOR Y NAVEGACIÓN CONDICIONAL
 # ==============================================================================
 logo_header_html = f'<img src="{LOGO_URI}" style="height:52px;">' if LOGO_URI else ''
 
@@ -891,47 +1034,121 @@ header_html = (
 )
 st.markdown(header_html, unsafe_allow_html=True)
 
-col_sel1, col_sel2, col_bag = st.columns([1.5, 1.5, 1.2])
-with col_sel1:
-    st.markdown('<span class="marcador-selector-top" style="display:none;"></span>', unsafe_allow_html=True)
-    tipo_cemento_label = st.selectbox("Cemento", list(CONFIG_CEMENTOS.keys()), index=0)
-with col_sel2:
-    edad_label = st.selectbox(
-        "Edad de Predicción",
-        [
-            "1 día",
-            "3 días",
-            "7 días",
-            "28 días",
-            "Evolución multiedad (1, 3, 7 y 28 días)"
-        ],
-        index=3
-    )
+# Barra compacta de sesión activa + Panel exclusivo para el Administrador (Marco Martínez)
+usr_actual = st.session_state["usuario_autenticado"]
+col_usr_info, col_usr_admin, col_usr_logout = st.columns([3.2, 2.0, 0.8])
+with col_usr_info:
+    st.caption(f"🟢 **Sesión autorizada:** {usr_actual['nombre']} ({usr_actual['rol']})")
+with col_usr_logout:
+    if st.button("Cerrar sesión", key="btn_salir_dccai", use_container_width=True):
+        st.session_state["usuario_autenticado"] = None
+        st.rerun()
 
-cfg = CONFIG_CEMENTOS[tipo_cemento_label]
-cod_cem = cfg["codigo"]
+if usr_actual.get("es_admin", False):
+    with st.expander("🔐 Panel de Administrador (Ing. Marco Martínez): Autorizar o Revocar Usuarios"):
+        adm_c1, adm_c2 = st.columns([1.3, 1.7])
+        with adm_c1:
+            st.markdown("**➕ Crear / Actualizar Usuario Autorizado**")
+            nuevo_user = st.text_input("Usuario (login):", key="adm_new_u", placeholder="ej. rortega").strip().lower()
+            nuevo_nom = st.text_input("Nombre y Cargo:", key="adm_new_n", placeholder="ej. Raúl Ortega — Analista DCCA")
+            nueva_pass = st.text_input("Contraseña asignada:", type="password", key="adm_new_p")
+            if st.button("Guardar Usuario Autorizado", key="btn_save_user", use_container_width=True):
+                if nuevo_user and nueva_pass:
+                    st.session_state["catalogo_usuarios"][nuevo_user] = {
+                        "nombre": nuevo_nom if nuevo_nom else nuevo_user.upper(),
+                        "rol": "Usuario Autorizado DCCA",
+                        "es_admin": False,
+                        "hash": hash_clave(nueva_pass)
+                    }
+                    guardar_catalogo_usuarios(st.session_state["catalogo_usuarios"])
+                    st.success(f"✔️ Usuario '{nuevo_user}' autorizado correctamente.")
+                else:
+                    st.warning("Completa el usuario y la contraseña.")
+        with adm_c2:
+            st.markdown("**📋 Usuarios con Acceso Activo al Sistema**")
+            filas_u = [
+                {"Usuario": u, "Nombre": d["nombre"], "Rol": d["rol"]}
+                for u, d in st.session_state["catalogo_usuarios"].items()
+            ]
+            st.dataframe(pd.DataFrame(filas_u), use_container_width=True, height=165)
+            revocables = [u for u in st.session_state["catalogo_usuarios"].keys() if u != "mmartinez"]
+            u_revocar = st.selectbox("Revocar acceso a:", ["Seleccionar..."] + revocables, key="sel_revocar")
+            if u_revocar != "Seleccionar..." and st.button(f"🗑️ Eliminar acceso de {u_revocar}", key="btn_del_u"):
+                del st.session_state["catalogo_usuarios"][u_revocar]
+                guardar_catalogo_usuarios(st.session_state["catalogo_usuarios"])
+                st.success(f"Acceso revocado para '{u_revocar}'.")
+                st.rerun()
 
-with col_bag:
-    bag_uri = BOLSAS_URI.get(cod_cem)
-    img_bag_top = f'<img src="{bag_uri}" style="height:56px; border-radius:4px;">' if bag_uri else ''
-    st.markdown(
-        f'<div class="bag-showcase">{img_bag_top}'
-        f'<div><div style="font-size:0.71rem; color:#E30613; font-weight:800; text-transform:uppercase;">{cfg["norma"]}</div>'
-        f'<div style="font-size:0.94rem; color:#F8FAFC; font-weight:800;">{cfg["marca"]}</div></div></div>',
-        unsafe_allow_html=True
-    )
-
-
-# ==============================================================================
-# 6. PESTAÑAS EJECUTIVAS
-# ==============================================================================
-tab_sim, tab_batch, tab_spc, tab_mensual, tab_mlops = st.tabs([
+# NAVEGACIÓN DE LOS 5 MÓDULOS (Permite saber en Python qué módulo está activo)
+MODULOS_LISTA = [
     "🎛️ Inferencia y Variables Predictoras",
     "📂 Carga por Lotes y Métricas",
     "📈 Diagnóstico de Residuales y Control Estadístico",
     "📊 Estadístico Mensual (3 Cementos × 4 Edades)",
     "🔄 Aprendizaje Continuo"
-])
+]
+
+if "cem_global_sel" not in st.session_state:
+    st.session_state["cem_global_sel"] = list(CONFIG_CEMENTOS.keys())[0]
+if "edad_global_sel" not in st.session_state:
+    st.session_state["edad_global_sel"] = "28 días"
+
+# Contenedor superior que SOLO se renderiza si estamos en los Módulos 1, 2 o 3
+placeholder_barra_cemento = st.container()
+
+modulo_activo = st.radio(
+    "Navegación de Módulos DCCAI",
+    MODULOS_LISTA,
+    horizontal=True,
+    label_visibility="collapsed",
+    key="nav_modulo_activo"
+)
+
+# Renderizado condicional estricto: SOLO aparece en Módulo 1, Módulo 2 y Módulo 3
+if modulo_activo in MODULOS_LISTA[:3]:
+    with placeholder_barra_cemento:
+        col_sel1, col_sel2, col_bag = st.columns([1.5, 1.5, 1.2])
+        with col_sel1:
+            tipo_cemento_label = st.selectbox(
+                "Cemento",
+                list(CONFIG_CEMENTOS.keys()),
+                index=list(CONFIG_CEMENTOS.keys()).index(st.session_state["cem_global_sel"])
+            )
+            st.session_state["cem_global_sel"] = tipo_cemento_label
+        with col_sel2:
+            opciones_edad_top = [
+                "1 día",
+                "3 días",
+                "7 días",
+                "28 días",
+                "Evolución multiedad (1, 3, 7 y 28 días)"
+            ]
+            edad_label = st.selectbox(
+                "Edad de Predicción",
+                opciones_edad_top,
+                index=opciones_edad_top.index(st.session_state["edad_global_sel"])
+            )
+            st.session_state["edad_global_sel"] = edad_label
+
+        cfg = CONFIG_CEMENTOS[tipo_cemento_label]
+        cod_cem = cfg["codigo"]
+
+        with col_bag:
+            bag_uri = BOLSAS_URI.get(cod_cem)
+            img_bag_top = f'<img src="{bag_uri}" style="height:56px; border-radius:4px;">' if bag_uri else ''
+            st.markdown(
+                f'<div class="bag-showcase">{img_bag_top}'
+                f'<div><div style="font-size:0.71rem; color:#E30613; font-weight:800; text-transform:uppercase;">{cfg["norma"]}</div>'
+                f'<div style="font-size:0.94rem; color:#F8FAFC; font-weight:800;">{cfg["marca"]}</div></div></div>',
+                unsafe_allow_html=True
+            )
+else:
+    # En Módulos 4 y 5 NO se dibuja la barra superior
+    tipo_cemento_label = st.session_state["cem_global_sel"]
+    edad_label = st.session_state["edad_global_sel"]
+    cfg = CONFIG_CEMENTOS[tipo_cemento_label]
+    cod_cem = cfg["codigo"]
+    bag_uri = BOLSAS_URI.get(cod_cem)
 
 MAPA_EDAD_SYNC = {
     "1 día": ("1d", "1 día"),
@@ -941,10 +1158,15 @@ MAPA_EDAD_SYNC = {
 }
 edad_sync_code, edad_sync_texto = MAPA_EDAD_SYNC.get(edad_label, ("28d", "28 días"))
 
+
+# ==============================================================================
+# 6. EJECUCIÓN DEL MÓDULO SELECCIONADO
+# ==============================================================================
+
 # ------------------------------------------------------------------------------
-# PESTAÑA 1: INFERENCIA, IMPORTANCIA DE VARIABLES Y MÉTRICAS CERTIFICADAS
+# MÓDULO 1: INFERENCIA, IMPORTANCIA DE VARIABLES Y MÉTRICAS CERTIFICADAS
 # ------------------------------------------------------------------------------
-with tab_sim:
+if modulo_activo == MODULOS_LISTA[0]:
     defaults = cfg["defaults"].copy()
     features_activas = cfg["features"]
     valor_real_lote = None
@@ -1232,9 +1454,9 @@ with tab_sim:
                     mc5.markdown(f'<div class="metric-exec-card"><div class="metric-exec-title">R² Cinético Global</div><div class="metric-exec-val" style="color:#38BDF8;">{r2_m:.3f}</div></div>', unsafe_allow_html=True)
 
 # ------------------------------------------------------------------------------
-# PESTAÑA 2: CARGA POR LOTES Y MÉTRICAS (SINCRONIZADA CON LA EDAD SUPERIOR)
+# MÓDULO 2: CARGA POR LOTES Y MÉTRICAS (SINCRONIZADO CON LA EDAD SUPERIOR)
 # ------------------------------------------------------------------------------
-with tab_batch:
+elif modulo_activo == MODULOS_LISTA[1]:
     st.markdown(f"##### 📂 Carga por Lotes y Resultado de Métricas ({cfg['marca']} — {edad_sync_texto})")
     edad_batch = edad_sync_code
     target_col = f"{edad_batch[:-1]}_d"
@@ -1331,9 +1553,9 @@ with tab_batch:
             st.error(f"Error al procesar el archivo Excel: {e}")
 
 # ------------------------------------------------------------------------------
-# PESTAÑA 3: 3 GRÁFICOS SIN CUADRÍCULA DE FONDO (SHOWGRID=FALSE)
+# MÓDULO 3: DIAGNÓSTICO DE RESIDUALES Y CONTROL ESTADÍSTICO (CONSECUENTE DEL MÓDULO 2)
 # ------------------------------------------------------------------------------
-with tab_spc:
+elif modulo_activo == MODULOS_LISTA[2]:
     st.markdown("##### 📈 Diagnóstico de Residuales y Control Estadístico de Calidad")
     if "ultimo_df_validado" in st.session_state:
         df_v, y_r, y_p, fechas_v, ed_v = st.session_state["ultimo_df_validado"]
@@ -1404,15 +1626,15 @@ with tab_spc:
             )
             st.plotly_chart(fig_res, use_container_width=True)
     else:
-        st.info("Carga un archivo en la pestaña **Carga por Lotes y Métricas** para visualizar el seguimiento temporal por fecha y el diagnóstico de residuales.")
+        st.info("Carga un archivo en el módulo **Carga por Lotes y Métricas** para visualizar el seguimiento temporal por fecha y el diagnóstico de residuales.")
 
 # ------------------------------------------------------------------------------
-# PESTAÑA 4: ESTADÍSTICO MENSUAL CONSOLIDADO (SIN BARRA DE CEMENTO/EDAD ARRIBA)
+# MÓDULO 4: ESTADÍSTICO MENSUAL CONSOLIDADO (SIN ENCABEZADO DE CEMENTO/EDAD ARRIBA)
 # ------------------------------------------------------------------------------
-with tab_mensual:
+elif modulo_activo == MODULOS_LISTA[3]:
     st.markdown("##### 📊 Estadístico Mensual Consolidado: 3 Cementos (TI, GU, HS) × 4 Edades (1d, 3d, 7d, 28d) vs. Real")
     st.caption(
-        "Sube los Excels Maestros en bruto de **TI**, **GU** y **HS** (o cárgales en la Pestaña 2). "
+        "Sube los Excels Maestros en bruto de **TI**, **GU** y **HS** (o cárgales en el Módulo 2). "
         "El motor filtra el mes seleccionado y compara simultáneamente los 12 modelos frente a los valores reales de prensa."
     )
 
@@ -1624,16 +1846,16 @@ with tab_mensual:
         st.info("Sube arriba al menos uno de los Excels Maestros en bruto (**TI**, **GU** o **HS**) para generar el cuadro estadístico comparativo del mes.")
 
 # ------------------------------------------------------------------------------
-# PESTAÑA 5: APRENDIZAJE CONTINUO (AUTÓNOMO CON SUS PROPIOS SELECTORES INTERNOS)
+# MÓDULO 5: APRENDIZAJE CONTINUO (SIN ENCABEZADO DE CEMENTO/EDAD ARRIBA)
 # ------------------------------------------------------------------------------
-with tab_mlops:
+elif modulo_activo == MODULOS_LISTA[4]:
     st.markdown("##### 🔄 Aprendizaje Continuo y Gobernanza MLOps")
     st.caption(
-        "Selecciona la familia de cemento y la edad de ensayo a calibrar. "
+        "Selecciona la familia de cemento y la edad de ensayo que deseas recalibrar. "
         "Mitiga la deriva de concepto (*Concept Drift*) ante cambios en la mineralogía del clínker o frentes de cantera."
     )
 
-    ml_col1, ml_col2 = st.columns(2)
+    ml_col1, ml_col2, ml_col_bag = st.columns([1.5, 1.5, 1.2])
     with ml_col1:
         cem_mlops_label = st.selectbox("🏭 Cemento a actualizar:", list(CONFIG_CEMENTOS.keys()), index=0, key="sel_cem_mlops")
     with ml_col2:
@@ -1643,6 +1865,16 @@ with tab_mlops:
     cod_cem_mlops = cfg_mlops["codigo"]
     edad_retrain, edad_retrain_texto = MAPA_EDAD_SYNC[edad_mlops_label]
     target_retrain = f"{edad_retrain[:-1]}_d"
+
+    with ml_col_bag:
+        bag_ml_uri = BOLSAS_URI.get(cod_cem_mlops)
+        img_bag_ml = f'<img src="{bag_ml_uri}" style="height:56px; border-radius:4px;">' if bag_ml_uri else ''
+        st.markdown(
+            f'<div class="bag-showcase">{img_bag_ml}'
+            f'<div><div style="font-size:0.71rem; color:#E30613; font-weight:800; text-transform:uppercase;">{cfg_mlops["norma"]}</div>'
+            f'<div style="font-size:0.94rem; color:#F8FAFC; font-weight:800;">{cfg_mlops["marca"]}</div></div></div>',
+            unsafe_allow_html=True
+        )
 
     modo_mlops = st.radio(
         "Estrategia de actualización del modelo:",
@@ -1759,8 +1991,9 @@ with tab_mlops:
         else:
             st.warning(f"El archivo subido no contiene la columna de resistencia para **{edad_retrain_texto}** (`{target_retrain}`).")
 
+
 # ==============================================================================
-# 7. PIE DE PÁGINA INSTITUCIONAL SIEMPRE FIJO ABAJO
+# 7. PIE DE PÁGINA INSTITUCIONAL SIEMPRE FIJO ABAJO (NORMATIVO RAE Y TÉCNICO)
 # ==============================================================================
 footer_html = (
     '<div class="footer-disclaimer">'
